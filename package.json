@@ -1,8 +1,11 @@
 {
-  "name": "figma-make-app",
+  "name": "mtu-fresher-voting-system",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+  "node": "20.x"
+},
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
@@ -32,3 +35,4 @@
     "vite": "^8.0.0"
   }
 }
+
