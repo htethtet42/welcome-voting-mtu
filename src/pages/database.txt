@@ -1,0 +1,85 @@
+{
+  "project_id": "ylywqhbzzsszlhshlrbd",
+  "query": "
+-- Create elections table
+CREATE TABLE IF NOT EXISTS public.elections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create candidates table
+CREATE TABLE IF NOT EXISTS public.candidates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  election_id UUID NOT NULL REFERENCES public.elections(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  image_url TEXT,
+  votes_count INT DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create voters table (tracks unique voters)
+CREATE TABLE IF NOT EXISTS public.voters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  ip_address TEXT,
+  voted_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create votes table (tracks individual votes)
+CREATE TABLE IF NOT EXISTS public.votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  voter_id UUID NOT NULL REFERENCES public.voters(id) ON DELETE CASCADE,
+  candidate_id UUID NOT NULL REFERENCES public.candidates(id) ON DELETE CASCADE,
+  election_id UUID NOT NULL REFERENCES public.elections(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(voter_id, election_id)
+);
+
+-- Create OTP sessions table
+CREATE TABLE IF NOT EXISTS public.otp_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  otp_code TEXT NOT NULL,
+  attempts INT DEFAULT 0,
+  max_attempts INT DEFAULT 3,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  verified_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Enable RLS
+ALTER TABLE public.elections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.voters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.votes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.otp_sessions ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for elections (anyone can read)
+CREATE POLICY \"elections_select_all\" ON public.elections FOR SELECT USING (true);
+
+-- RLS Policies for candidates (anyone can read)
+CREATE POLICY \"candidates_select_all\" ON public.candidates FOR SELECT USING (true);
+
+-- RLS Policies for voters (anyone can insert their own)
+CREATE POLICY \"voters_insert_own\" ON public.voters FOR INSERT WITH CHECK (true);
+CREATE POLICY \"voters_select_own\" ON public.voters FOR SELECT USING (true);
+CREATE POLICY \"voters_update_own\" ON public.voters FOR UPDATE USING (true);
+
+-- RLS Policies for votes (anyone can insert/select)
+CREATE POLICY \"votes_insert_own\" ON public.votes FOR INSERT WITH CHECK (true);
+CREATE POLICY \"votes_select_all\" ON public.votes FOR SELECT USING (true);
+
+-- RLS Policies for OTP sessions (anyone can insert/update)
+CREATE POLICY \"otp_sessions_insert_own\" ON public.otp_sessions FOR INSERT WITH CHECK (true);
+CREATE POLICY \"otp_sessions_select_own\" ON public.otp_sessions FOR SELECT USING (true);
+CREATE POLICY \"otp_sessions_update_own\" ON public.otp_sessions FOR UPDATE USING (true);
+",
+  "taskNameActive": "Creating database schema",
+  "taskNameComplete": "Created database schema",
+  "permissionPrompt": "Creating Supabase database tables for voting system with elections, candidates, voters, votes, and OTP sessions with Row Level Security policies."
+}
