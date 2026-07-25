@@ -22,7 +22,7 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
   published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgba(212,175,55,0.3)', dot: '#D4AF37' },
 };
 
-const DEADLINE = new Date('2026-07-25T23:59:59');
+const DEADLINE = new Date('2026-07-27T23:59:59');
 
 export default function Landing() {
   const { darkMode, totalVotes, election, candidates } = useElection();
