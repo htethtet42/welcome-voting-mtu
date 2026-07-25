@@ -76,7 +76,7 @@ export const CANDIDATES: Candidate[] = [
     isActive: true,
   },
   {
-    id: 'smart-1',
+    id: 'style-1',
     name: 'Gifty Acheampong',
     nickname: 'Gifty G',
     department: 'Mechatronics Engineering',
@@ -88,7 +88,7 @@ export const CANDIDATES: Candidate[] = [
     isActive: true,
   },
   {
-    id: 'smart-2',
+    id: 'style-2',
     name: 'Serena Ofosu',
     nickname: 'SJ',
     department: 'Electrical Engineering',
@@ -100,7 +100,7 @@ export const CANDIDATES: Candidate[] = [
     isActive: true,
   },
   {
-    id: 'smart-3',
+    id: 'style-3',
     name: 'Adjoa Boateng',
     nickname: 'AJ',
     department: 'Electrical Power Engineering',
@@ -112,7 +112,7 @@ export const CANDIDATES: Candidate[] = [
     isActive: true,
   },
   {
-    id: 'style-1',
+    id: 'smart-1',
     name: 'Kofi Agyeman',
     nickname: 'Prof K',
     department: 'Computer Science and Information Technology',
@@ -124,7 +124,7 @@ export const CANDIDATES: Candidate[] = [
     isActive: true,
   },
   {
-    id: 'style-2',
+    id: 'smart-2',
     name: 'Prince Opoku',
     nickname: 'POB',
     department: 'Mechatronics Engineering',
@@ -136,7 +136,7 @@ export const CANDIDATES: Candidate[] = [
     isActive: true,
   },
   {
-    id: 'style-3',
+    id: 'smart-3',
     name: 'Samuel Darko',
     nickname: 'Sam D',
     department: 'Mechanical Engineering',
