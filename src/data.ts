@@ -1,4 +1,4 @@
-import type { Candidate, EligibleVoter, ElectionState } from './types';
+import type { Candidate,  ElectionState } from './types';
 
 export const CANDIDATES: Candidate[] = [
   // King
@@ -81,7 +81,7 @@ export const CANDIDATES: Candidate[] = [
     nickname: 'Gifty G',
     department: 'Mechatronics Engineering',
     year: 'Level 300',
-    category: 'smart',
+    category: 'style',
     photo: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=500&fit=crop&auto=format',
     bio: 'Fashion designer and style blogger whose campus looks go viral on social media every week.',
     talent: 'Fashion Design & Personal Styling',
@@ -93,7 +93,7 @@ export const CANDIDATES: Candidate[] = [
     nickname: 'SJ',
     department: 'Electrical Engineering',
     year: 'Level 300',
-    category: 'smart',
+    category: 'style',
     photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=500&fit=crop&auto=format',
     bio: 'Brand ambassador blending rich African heritage with contemporary street style aesthetics.',
     talent: 'Brand Identity & Cultural Fashion',
@@ -105,7 +105,7 @@ export const CANDIDATES: Candidate[] = [
     nickname: 'AJ',
     department: 'Electrical Power Engineering',
     year: 'Level 400',
-    category: 'smart',
+    category: 'style',
     photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=500&fit=crop&auto=format',
     bio: 'Architect-in-training whose design sense extends from blueprints to her iconic personal style.',
     talent: 'Aesthetic Design & Visual Art',
@@ -117,7 +117,7 @@ export const CANDIDATES: Candidate[] = [
     nickname: 'Prof K',
     department: 'Computer Science and Information Technology',
     year: 'Level 400',
-    category: 'style',
+    category: 'smart',
     photo: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=500&fit=crop&auto=format',
     bio: 'AI researcher with 3 published papers, perfect CGPA, and winner of the National Science Olympiad.',
     talent: 'Artificial Intelligence & Research',
@@ -129,7 +129,7 @@ export const CANDIDATES: Candidate[] = [
     nickname: 'POB',
     department: 'Mechatronics Engineering',
     year: 'Level 300',
-    category: 'style',
+    category: 'smart',
     photo: 'https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?w=400&h=500&fit=crop&auto=format',
     bio: 'Mathematics prodigy who represented Ghana at the International Mathematical Olympiad 2025.',
     talent: 'Pure Mathematics & Problem Solving',
@@ -141,7 +141,7 @@ export const CANDIDATES: Candidate[] = [
     nickname: 'Sam D',
     department: 'Mechanical Engineering',
     year: 'Level 400',
-    category: 'style',
+    category: 'smart',
     photo: 'https://images.unsplash.com/photo-1552058544-f2b08422138a?w=400&h=500&fit=crop&auto=format',
     bio: 'Physics wizard and quiz champion who has won 5 consecutive inter-university quiz competitions.',
     talent: 'Physics & Academic Competition',
