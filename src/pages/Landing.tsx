@@ -94,23 +94,6 @@ export default function Landing() {
           </span>
         </div>
 
-        {/* Status Card Container */}
-      <div className="flex justify-center mb-8"> {/* <-- Added mb-8 here to create breathing room */}
-        <div className="rounded-2xl p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-800 text-center">
-          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-            {election.status === 'open' ? 'Polls Are Live' : 'Polls Status'}
-          </p>
-    
-        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-          election.status === 'open' 
-            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
-            : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
-        }`}>
-          {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
-        </span>
-          </div>
-        </div>
-
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">
           <Link to="/vote" className="btn-primary">Enter Voting Booth →</Link>
