@@ -6,7 +6,7 @@ import autoTable from 'jspdf-autotable';
 import {
   Shield, Trophy, Users, BarChart3, FileText,
   Download, RefreshCw, Plus, Pencil, CheckCircle2,
-  XCircle, AlertTriangle, X, Check,
+  XCircle, AlertTriangle, X, Check, Activity, Database, List
 } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
@@ -15,7 +15,8 @@ import { CATEGORY_META, type Category, type Candidate } from '../types';
 const TABS = ['Overview', 'Candidates', 'Ballots', 'Analytics', 'Audit', 'Controls'] as const;
 type Tab = typeof TABS[number];
 
-const CAT_COLORS: Record<Category, string> = { king: '#60A5FA', queen: '#FF7AAE' ,style:'#18ad6f11',smart:'#82970a11'};
+// Upgraded neon/solid colors for charts against dark backgrounds
+const CAT_COLORS: Record<Category, string> = { king: '#60A5FA', queen: '#FF7AAE' ,style:'#00C9A7',smart:'#D4AF37'};
 
 interface CandidateForm {
   name: string; nickname: string; department: string; year: string;
@@ -42,32 +43,36 @@ export default function Admin() {
   const [candidateModal, setCandidateModal] = useState<null | { mode: 'add' | 'edit'; id?: string }>(null);
   const [form, setForm] = useState<CandidateForm>(BLANK_FORM);
 
-  const bg = darkMode ? '#0D0D1A' : '#F8F5EF';
-  const cardBg = darkMode ? '#161624' : '#FFFFFF';
-  const textPrimary = darkMode ? '#F5F0E8' : '#1A1A2A';
+  // Modern Prestige Color Palette
+  const bg = darkMode ? '#0A0F1D' : '#FAFAFA';
+  const cardBg = darkMode ? 'rgba(22, 22, 36, 0.6)' : 'rgba(255, 255, 255, 0.7)';
+  const textPrimary = darkMode ? '#F8F9FA' : '#111827';
   const textMuted = darkMode ? '#9CA3AF' : '#6B7280';
-  const border = darkMode ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.25)';
-  const inputBg = darkMode ? '#0D0D1A' : '#F0EDE8';
+  const border = darkMode ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.3)';
+  const inputBg = darkMode ? 'rgba(10, 15, 29, 0.5)' : 'rgba(255, 255, 255, 0.9)';
 
   const actorName = user?.name ?? 'Admin';
 
-  // Guard
+  // Gate: Elevated Admin Authentication
   if (!isAuthenticated || !isAdmin) {
     return (
-      <div style={{ background: bg, minHeight: '100vh' }} className="pt-16 flex items-center justify-center px-4">
-        <div className="text-center max-w-sm">
-          <Shield size={40} className="mx-auto mb-4" style={{ color: textMuted }} />
-          <h2 className="font-display font-bold text-xl mb-2" style={{ color: textPrimary }}>Admin Access Required</h2>
-          <p className="text-sm mb-6" style={{ color: textMuted }}>Sign in as admin to access this dashboard.</p>
-          <a href="#/login" className="inline-block px-5 py-3 rounded-xl font-semibold text-sm" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A' }}>
-            Sign In as Admin
+      <div style={{ background: bg, minHeight: '100vh' }} className="pt-16 flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none opacity-30" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(212,175,55,0.1) 0%, transparent 60%)' }} />
+        <div className="relative w-full max-w-md rounded-3xl p-10 text-center backdrop-blur-xl shadow-2xl border" style={{ background: cardBg, borderColor: border }}>
+          <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6" style={{ background: 'rgba(212,175,55,0.1)' }}>
+            <Shield size={40} style={{ color: '#D4AF37' }} />
+          </div>
+          <h2 className="font-display font-bold text-2xl mb-3" style={{ color: textPrimary }}>Command Center</h2>
+          <p className="text-sm leading-relaxed mb-8" style={{ color: textMuted }}>Restricted access. Please authenticate with elevated administrative credentials to proceed.</p>
+          <a href="#/login" className="block w-full py-4 rounded-full font-bold text-sm transition-all duration-300 hover:scale-[1.02] shadow-lg" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
+            Authenticate as Admin
           </a>
         </div>
       </div>
     );
   }
 
-  // === Data ===
+  // === Data Logic (Preserved) ===
   const allData = useMemo(() => candidates.map(c => ({
     ...c, votes: voteCounts[c.id] ?? 0, meta: CATEGORY_META[c.category],
   })).sort((a, b) => a.category.localeCompare(b.category) || b.votes - a.votes), [candidates, voteCounts]);
@@ -91,18 +96,13 @@ export default function Admin() {
     return [...byVoter.values()].sort((a, b) => new Date(b.lastVote).getTime() - new Date(a.lastVote).getTime());
   }, [voteRecords, candidates]);
 
-  // === Exports ===
+  // === Export Logic (Preserved) ===
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(allData.map(c => ({
-      Category: c.meta.label, Name: c.name, Nickname: c.nickname,
-      Department: c.department, Year: c.year, Votes: c.votes, Active: c.isActive ? 'Yes' : 'No',
-    })));
+    const ws = XLSX.utils.json_to_sheet(allData.map(c => ({ Category: c.meta.label, Name: c.name, Nickname: c.nickname, Department: c.department, Year: c.year, Votes: c.votes, Active: c.isActive ? 'Yes' : 'No' })));
     ws['!cols'] = [10, 22, 12, 22, 10, 8, 8].map(w => ({ wch: w }));
     XLSX.utils.book_append_sheet(wb, ws, 'Results');
-    const auditWs = XLSX.utils.json_to_sheet(auditLog.map(e => ({
-      Timestamp: new Date(e.timestamp).toLocaleString(), Actor: e.actor, Action: e.action, Details: e.details,
-    })));
+    const auditWs = XLSX.utils.json_to_sheet(auditLog.map(e => ({ Timestamp: new Date(e.timestamp).toLocaleString(), Actor: e.actor, Action: e.action, Details: e.details })));
     XLSX.utils.book_append_sheet(wb, auditWs, 'Audit Log');
     XLSX.writeFile(wb, 'MTU_King_Queen_2026.xlsx');
   };
@@ -110,11 +110,11 @@ export default function Admin() {
   const exportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18); doc.setTextColor(212, 175, 55);
-    doc.text('MTU King & Queen 2026 — Results', 14, 20);
+    doc.text('MTU King & Queen 2026 — Official Results', 14, 20);
     doc.setFontSize(10); doc.setTextColor(100);
-    doc.text(`Generated: ${new Date().toLocaleString()} · Total votes: ${totalVotes.toLocaleString()}`, 14, 30);
+    doc.text(`Generated: ${new Date().toLocaleString()} · Verified votes: ${totalVotes.toLocaleString()}`, 14, 30);
     doc.setFontSize(13); doc.setTextColor(50);
-    doc.text('Winners', 14, 42);
+    doc.text('Elected Champions', 14, 42);
     autoTable(doc, {
       startY: 46,
       head: [['Category', 'Winner', 'Department', 'Votes']],
@@ -125,7 +125,7 @@ export default function Admin() {
       headStyles: { fillColor: [26, 26, 62] },
     });
     const y = (doc as any).lastAutoTable.finalY + 10;
-    doc.text('Full Standings', 14, y);
+    doc.text('Comprehensive Standings', 14, y);
     autoTable(doc, {
       startY: y + 4,
       head: [['Category', 'Name', 'Department', 'Year', 'Votes']],
@@ -136,17 +136,14 @@ export default function Admin() {
   };
 
   const exportAuditCSV = () => {
-    const rows = ['Timestamp,Actor,Action,Details', ...auditLog.map(e =>
-      [new Date(e.timestamp).toLocaleString(), e.actor, e.action, `"${e.details}"`].join(',')
-    )].join('\n');
+    const rows = ['Timestamp,Actor,Action,Details', ...auditLog.map(e => [new Date(e.timestamp).toLocaleString(), e.actor, e.action, `"${e.details}"`].join(','))].join('\n');
     const blob = new Blob([rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'audit_log.csv'; a.click();
     URL.revokeObjectURL(url);
   };
 
-  // === Election lifecycle ===
-  // === Candidate modal ===
+  // === Modal Handlers ===
   const openAddModal = () => { setForm(BLANK_FORM); setCandidateModal({ mode: 'add' }); };
   const openEditModal = (c: Candidate) => {
     setForm({ name: c.name, nickname: c.nickname, department: c.department, year: c.year, category: c.category, bio: c.bio, talent: c.talent, photo: c.photo, isActive: c.isActive });
@@ -154,121 +151,137 @@ export default function Admin() {
   };
   const saveCandidate = () => {
     if (!form.name.trim()) return;
-    if (candidateModal?.mode === 'add') {
-      addCandidate(form, actorName);
-    } else if (candidateModal?.id) {
-      updateCandidate(candidateModal.id, form, actorName);
-    }
+    if (candidateModal?.mode === 'add') addCandidate(form, actorName);
+    else if (candidateModal?.id) updateCandidate(candidateModal.id, form, actorName);
     setCandidateModal(null);
   };
 
-  const inputStyle = {
-    background: inputBg, color: textPrimary,
-    border: `1px solid ${border}`,
-  };
-
+  const inputStyle = { background: inputBg, color: textPrimary, border: `1px solid ${border}` };
+  const inputCls = 'w-full px-4 py-3 rounded-xl text-sm outline-none transition-all focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]';
   const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium mb-1.5" style={{ color: textMuted }}>{label}</label>
-      {children}
-    </div>
+    <div><label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: textMuted }}>{label}</label>{children}</div>
   );
 
-  const inputCls = 'w-full px-3 py-2.5 rounded-xl text-sm outline-none';
-
   return (
-    <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16">
-      {/* Top bar */}
-      <div className="border-b px-4 sm:px-6 py-4" style={{ background: darkMode ? '#161624' : '#FFFFFF', borderColor: border }}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <Shield size={22} style={{ color: '#D4AF37' }} />
+    <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
+      
+      {/* Glassmorphic Sticky Header */}
+      <div className="sticky top-16 z-30 border-b backdrop-blur-xl transition-all" style={{ background: darkMode ? 'rgba(13, 13, 26, 0.8)' : 'rgba(248, 245, 239, 0.8)', borderColor: border }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-2 rounded-lg" style={{ background: 'rgba(212,175,55,0.1)' }}>
+               <Shield size={24} style={{ color: '#D4AF37' }} />
+            </div>
             <div>
-              <h1 className="font-display font-bold text-lg" style={{ color: textPrimary }}>Admin Dashboard</h1>
-              <p className="text-xs" style={{ color: textMuted }}>Signed in as {actorName}</p>
+              <h1 className="font-display font-bold text-xl tracking-tight" style={{ color: textPrimary }}>System Command</h1>
+              <p className="text-xs font-mono" style={{ color: textMuted }}>Session authorized: <span style={{ color: '#D4AF37' }}>{actorName}</span></p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={exportExcel} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'rgba(0,201,167,0.3)', color: '#00C9A7' }}>
-              <Download size={11} className="inline mr-1" />Excel
-            </button>
-            <button onClick={exportPDF} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: 'rgba(212,175,55,0.3)', color: '#D4AF37' }}>
-              <Download size={11} className="inline mr-1" />PDF
-            </button>
-            <button onClick={logout} className="text-xs px-3 py-1.5 rounded-lg border" style={{ borderColor: border, color: textMuted }}>
-              Sign Out
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 mr-2">
+              <button onClick={exportExcel} className="text-xs font-semibold px-4 py-2 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#00C9A7', border: '1px solid rgba(0,201,167,0.3)' }}>
+                <Download size={14} className="inline mr-1.5" />.XLSX
+              </button>
+              <button onClick={exportPDF} className="text-xs font-semibold px-4 py-2 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>
+                <Download size={14} className="inline mr-1.5" />.PDF
+              </button>
+            </div>
+            <div className="w-px h-6 hidden sm:block" style={{ background: border }}></div>
+            <button onClick={logout} className="text-xs font-semibold px-4 py-2 rounded-lg transition-all hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30" style={{ border: `1px solid ${border}`, color: textMuted }}>
+              Terminate Session
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="border-b px-4 sm:px-6" style={{ background: darkMode ? '#161624' : '#FFFFFF', borderColor: border }}>
-        <div className="max-w-7xl mx-auto flex gap-0 overflow-x-auto">
+        {/* Integrated Navigation Pills */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-2 overflow-x-auto pb-4 hide-scrollbar">
           {TABS.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className="px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors"
-              style={{ borderBottomColor: activeTab === tab ? '#D4AF37' : 'transparent', color: activeTab === tab ? '#D4AF37' : textMuted }}
-            >
+            <button key={tab} onClick={() => setActiveTab(tab)} className="px-5 py-2.5 text-sm font-semibold rounded-full whitespace-nowrap transition-all duration-300 flex items-center gap-2" style={{ background: activeTab === tab ? 'rgba(212,175,55,0.1)' : 'transparent', color: activeTab === tab ? '#D4AF37' : textMuted, border: activeTab === tab ? '1px solid rgba(212,175,55,0.3)' : '1px solid transparent' }}>
+              {tab === 'Overview' && <Activity size={14} />}
+              {tab === 'Candidates' && <Users size={14} />}
+              {tab === 'Ballots' && <Database size={14} />}
+              {tab === 'Analytics' && <BarChart3 size={14} />}
+              {tab === 'Audit' && <List size={14} />}
+              {tab === 'Controls' && <Shield size={14} />}
               {tab}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-7 pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 relative z-10">
 
         {/* ── OVERVIEW ── */}
         {activeTab === 'Overview' && (
-          <div className="space-y-7">
-            {/* Stat cards */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
+            {/* Telemetry Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {[
-                { label: 'Total Votes', value: totalVotes.toLocaleString(), icon: <Trophy size={18} />, color: '#D4AF37' },
-                { label: 'Email Voters', value: String(participatingVoterCount), icon: <Users size={18} />, color: '#60A5FA' },
-                { label: 'Turnout', value: `${turnout}%`, icon: <BarChart3 size={18} />, color: '#A78BFA' },
-                { label: 'Status', value: election.status.charAt(0).toUpperCase() + election.status.slice(1), icon: election.status === 'open' ? <CheckCircle2 size={18} /> : <XCircle size={18} />, color: election.status === 'open' ? '#00C9A7' : election.status === 'published' ? '#D4AF37' : '#FF7AAE' },
-              ].map(s => (
-                <div key={s.label} className="rounded-2xl p-5 border" style={{ background: cardBg, borderColor: border }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm" style={{ color: textMuted }}>{s.label}</span>
-                    <span style={{ color: s.color }}>{s.icon}</span>
+                { label: 'Total Ballots Cast', value: totalVotes.toLocaleString(), icon: <Trophy size={20} />, color: '#D4AF37' },
+                { label: 'Verified Identities', value: String(participatingVoterCount), icon: <Users size={20} />, color: '#60A5FA' },
+                { label: 'Participation Rate', value: `${turnout}%`, icon: <Activity size={20} />, color: '#A78BFA' },
+                { label: 'Network Status', value: election.status.toUpperCase(), icon: election.status === 'open' ? <CheckCircle2 size={20} className="animate-pulse" /> : <XCircle size={20} />, color: election.status === 'open' ? '#00C9A7' : election.status === 'published' ? '#D4AF37' : '#FF7AAE' },
+              ].map((s, i) => (
+                <div key={i} className="relative rounded-3xl p-6 backdrop-blur-md overflow-hidden group hover:-translate-y-1 transition-all duration-300" style={{ background: cardBg, border: `1px solid ${border}` }}>
+                  <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 blur-2xl group-hover:opacity-20 transition-opacity" style={{ background: s.color }}></div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="p-2 rounded-xl" style={{ background: `${s.color}15`, color: s.color }}>{s.icon}</span>
                   </div>
-                  <p className="font-display font-bold text-2xl" style={{ color: s.color }}>{s.value}</p>
+                  <p className="font-display font-black text-3xl sm:text-4xl mb-1" style={{ color: textPrimary }}>{s.value}</p>
+                  <span className="text-xs font-mono uppercase tracking-widest opacity-70" style={{ color: s.color }}>{s.label}</span>
                 </div>
               ))}
             </div>
 
-            {/* Turnout meter */}
-            <div className="rounded-2xl p-5 border" style={{ background: cardBg, borderColor: border }}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold" style={{ color: textPrimary }}>Voter Turnout</h3>
-                <span className="font-mono text-sm font-bold" style={{ color: '#D4AF37' }}>{turnout}%</span>
+            {/* Turnout Progress */}
+            <div className="rounded-3xl p-6 sm:p-8 backdrop-blur-md" style={{ background: cardBg, border: `1px solid ${border}` }}>
+              <div className="flex items-end justify-between mb-4">
+                <div>
+                  <h3 className="font-display font-bold text-xl" style={{ color: textPrimary }}>Electoral Turnout</h3>
+                  <p className="text-sm mt-1" style={{ color: textMuted }}>Real-time participation metrics</p>
+                </div>
+                <span className="font-display font-black text-3xl" style={{ color: '#D4AF37' }}>{turnout}%</span>
               </div>
-              <div className="h-3 rounded-full overflow-hidden" style={{ background: darkMode ? '#252538' : '#F0EDE8' }}>
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(turnout, 100)}%`, background: 'linear-gradient(90deg, #D4AF37, #E8C84A)' }} />
+              <div className="h-4 rounded-full overflow-hidden shadow-inner relative" style={{ background: darkMode ? 'rgba(0,0,0,0.4)' : '#F0EDE8' }}>
+                <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(turnout, 100)}%`, background: 'linear-gradient(90deg, #D4AF37, #E8C84A)', boxShadow: '0 0 20px rgba(212,175,55,0.5)' }} />
               </div>
-              <p className="text-xs mt-1.5" style={{ color: textMuted }}>{voteRecords.length.toLocaleString()} ballots from {participatingVoterCount} email voters</p>
+              <div className="flex justify-between text-xs font-mono mt-3" style={{ color: textMuted }}>
+                <span>0%</span>
+                <span>{voteRecords.length.toLocaleString()} individual category votes recorded</span>
+                <span>100%</span>
+              </div>
             </div>
 
-            {/* Current leaders */}
+            {/* Projected Winners Grid */}
             <div>
-              <h3 className="font-display font-bold text-lg mb-4" style={{ color: textPrimary }}>Current Leaders</h3>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent opacity-30"></div>
+                 <h3 className="font-mono text-sm uppercase tracking-[0.2em]" style={{ color: '#D4AF37' }}>Current Projections</h3>
+                 <div className="h-px flex-1 bg-gradient-to-r from-[#D4AF37] via-transparent to-transparent opacity-30"></div>
+              </div>
+              
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {(['king', 'queen', 'style', 'smart'] as Category[]).map(cat => {
                   const winner = winners[cat];
                   const meta = CATEGORY_META[cat];
                   if (!winner) return null;
                   return (
-                    <div key={cat} className="rounded-2xl overflow-hidden border" style={{ background: cardBg, borderColor: meta.borderColor }}>
-                      <div className="relative h-28 overflow-hidden bg-night-900">
-                        <img src={winner.photo} alt={winner.name} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(13,13,26,0.9), transparent)' }} />
+                    <div key={cat} className="group rounded-3xl overflow-hidden backdrop-blur-md transition-all hover:scale-[1.02]" style={{ background: cardBg, border: `1px solid ${meta.borderColor}` }}>
+                      <div className="relative aspect-video overflow-hidden bg-gray-900">
+                        <img src={winner.photo} alt={winner.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1D] via-[#0A0F1D]/50 to-transparent" />
+                        <div className="absolute top-3 left-3 px-2 py-1 rounded backdrop-blur-md bg-black/40 border border-white/10 flex items-center gap-1.5">
+                           <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: meta.color }}>{meta.icon} Leader</span>
+                        </div>
                       </div>
-                      <div className="p-4">
-                        <p className="font-mono text-xs mb-0.5" style={{ color: meta.color }}>{meta.icon} {meta.label} — Leading</p>
-                        <p className="font-display font-bold text-lg" style={{ color: textPrimary }}>{winner.name}</p>
-                        <p className="font-mono font-bold" style={{ color: '#D4AF37' }}>{(voteCounts[winner.id] ?? 0).toLocaleString()} votes</p>
+                      <div className="p-5 relative -mt-6">
+                        <p className="font-display font-bold text-xl leading-tight mb-1" style={{ color: textPrimary }}>{winner.name}</p>
+                        <p className="text-xs mb-3 opacity-70" style={{ color: textPrimary }}>{winner.department}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="px-3 py-1.5 rounded-lg text-sm font-bold font-mono" style={{ background: `${meta.color}15`, color: meta.color }}>
+                            {(voteCounts[winner.id] ?? 0).toLocaleString()} <span className="opacity-60 text-xs">VOTES</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -278,26 +291,43 @@ export default function Admin() {
           </div>
         )}
 
-        {/* â”€â”€ BALLOT DATABASE â”€â”€ */}
+        {/* ── BALLOT DATABASE ── */}
         {activeTab === 'Ballots' && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-display font-bold text-xl" style={{ color: textPrimary }}>Ballot Database</h2>
-              <p className="text-sm mt-1" style={{ color: textMuted }}>Email-verified voters and the categories they have completed. {voteRecords.length} recorded ballots.</p>
+          <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display font-bold text-3xl" style={{ color: textPrimary }}>Encrypted Ledger</h2>
+                <p className="text-sm mt-2" style={{ color: textMuted }}>Cryptographically verified ballot entries. <span style={{ color: '#00C9A7' }}>{voteRecords.length} records secured.</span></p>
+              </div>
             </div>
-            <div className="rounded-2xl border overflow-hidden" style={{ background: cardBg, borderColor: border }}>
+            
+            <div className="rounded-3xl border overflow-hidden backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr style={{ borderBottom: `1px solid ${border}` }}>
-                    {['Voter', 'Email', 'King', 'Queen', 'Best Style', 'Smartest', 'Last ballot'].map(header => <th key={header} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide" style={{ color: textMuted }}>{header}</th>)}
-                  </tr></thead>
-                  <tbody>
-                    {ballotRows.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: textMuted }}>No ballots have been recorded yet.</td></tr> : ballotRows.map(row => (
-                      <tr key={row.email} style={{ borderBottom: `1px solid ${border}` }}>
-                        <td className="px-4 py-3 font-medium" style={{ color: textPrimary }}>{row.name}</td>
-                        <td className="px-4 py-3" style={{ color: textMuted }}>{row.email}</td>
-                        {(['king', 'queen', 'style', 'smart'] as Category[]).map(category => <td key={category} className="px-4 py-3" style={{ color: row.votes[category] ? CATEGORY_META[category].color : textMuted }}>{row.votes[category] ?? '—'}</td>)}
-                        <td className="px-4 py-3 whitespace-nowrap" style={{ color: textMuted }}>{new Date(row.lastVote).toLocaleString()}</td>
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead>
+                    <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      {['Identity', 'Email Address', 'King', 'Queen', 'Style', 'Smartest', 'Timestamp'].map((header, i) => (
+                        <th key={header} className={`px-6 py-4 font-mono text-[10px] uppercase tracking-widest ${i === 0 ? 'rounded-tl-2xl' : ''}`} style={{ color: textMuted }}>{header}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y" style={{ borderColor: border }}>
+                    {ballotRows.length === 0 ? <tr><td colSpan={7} className="px-6 py-12 text-center text-sm" style={{ color: textMuted }}>Awaiting network activity. No ballots recorded.</td></tr> : ballotRows.map(row => (
+                      <tr key={row.email} className="transition-colors hover:bg-white/5">
+                        <td className="px-6 py-4 font-bold" style={{ color: textPrimary }}>{row.name}</td>
+                        <td className="px-6 py-4 font-mono text-xs opacity-70" style={{ color: textPrimary }}>{row.email}</td>
+                        {(['king', 'queen', 'style', 'smart'] as Category[]).map(category => (
+                          <td key={category} className="px-6 py-4">
+                            {row.votes[category] ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium" style={{ background: `${CATEGORY_META[category].color}15`, color: CATEGORY_META[category].color }}>
+                                <Check size={12} /> {row.votes[category]}
+                              </span>
+                            ) : (
+                              <span className="opacity-30" style={{ color: textMuted }}>—</span>
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-6 py-4 whitespace-nowrap font-mono text-[11px]" style={{ color: textMuted }}>{new Date(row.lastVote).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -309,64 +339,64 @@ export default function Admin() {
 
         {/* ── CANDIDATES ── */}
         {activeTab === 'Candidates' && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display font-bold text-xl" style={{ color: textPrimary }}>Candidates</h2>
-              <button
-                onClick={openAddModal}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:scale-105"
-                style={{ background: 'rgba(212,175,55,0.12)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}
-              >
-                <Plus size={15} /> Add Candidate
+          <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display font-bold text-3xl" style={{ color: textPrimary }}>Nominee Roster</h2>
+                <p className="text-sm mt-2" style={{ color: textMuted }}>Manage official contenders across all categories.</p>
+              </div>
+              <button onClick={openAddModal} className="group flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all hover:scale-105 shadow-lg" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
+                <Plus size={16} className="transition-transform group-hover:rotate-90" /> Register Candidate
               </button>
             </div>
 
-            <div className="rounded-2xl border overflow-hidden" style={{ background: cardBg, borderColor: border }}>
+            <div className="rounded-3xl border overflow-hidden backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm text-left border-collapse">
                   <thead>
-                    <tr style={{ borderBottom: `1px solid ${border}` }}>
-                      {['', 'Name', 'Category', 'Department', 'Year', 'Votes', 'Status', 'Actions'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wide" style={{ color: textMuted }}>{h}</th>
+                    <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      {['Profile', 'Nominee', 'Division', 'Academic', 'Tally', 'Status', 'Terminal'].map(h => (
+                        <th key={h} className="px-6 py-4 font-mono text-[10px] uppercase tracking-widest" style={{ color: textMuted }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {allData.map((c, i) => (
-                      <tr key={c.id} style={{ borderBottom: `1px solid ${border}`, background: i % 2 === 0 ? 'transparent' : (darkMode ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.01)') }}>
-                        <td className="px-4 py-3">
-                          <img src={c.photo} alt={c.name} className="w-8 h-8 rounded-full object-cover" />
+                  <tbody className="divide-y" style={{ borderColor: border }}>
+                    {allData.map(c => (
+                      <tr key={c.id} className="transition-colors hover:bg-white/5 group">
+                        <td className="px-6 py-4">
+                          <div className="relative w-10 h-10">
+                            <div className="absolute inset-0 rounded-full blur-sm opacity-40 transition-opacity group-hover:opacity-80" style={{ background: c.meta.color }}></div>
+                            <img src={c.photo} alt={c.name} className="relative w-full h-full rounded-full object-cover border border-white/20" />
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold" style={{ color: textPrimary }}>{c.name}</p>
-                          <p className="text-xs" style={{ color: textMuted }}>"{c.nickname}"</p>
+                        <td className="px-6 py-4">
+                          <p className="font-bold text-base" style={{ color: textPrimary }}>{c.name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/20" style={{ color: c.meta.color }}>{c.meta.icon} {c.meta.label}</span>
+                            <span className="text-xs italic" style={{ color: textMuted }}>"{c.nickname}"</span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-mono px-2 py-0.5 rounded-full" style={{ background: c.meta.bgColor, color: c.meta.color }}>
-                            {c.meta.icon} {c.meta.label}
+                        <td className="px-6 py-4 text-xs font-medium" style={{ color: textPrimary }}>{c.department}</td>
+                        <td className="px-6 py-4 font-mono text-xs" style={{ color: textMuted }}>{c.year}</td>
+                        <td className="px-6 py-4 font-mono font-black text-lg" style={{ color: '#D4AF37' }}>{c.votes.toLocaleString()}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg" style={{ background: c.isActive ? 'rgba(0,201,167,0.1)' : 'rgba(255,122,174,0.1)', color: c.isActive ? '#00C9A7' : '#FF7AAE', border: `1px solid ${c.isActive ? 'rgba(0,201,167,0.3)' : 'rgba(255,122,174,0.3)'}` }}>
+                            {c.isActive ? <span className="w-1.5 h-1.5 rounded-full bg-[#00C9A7] animate-pulse" /> : <X size={10} />}
+                            {c.isActive ? 'Active' : 'Suspended'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm" style={{ color: textMuted }}>{c.department}</td>
-                        <td className="px-4 py-3 font-mono text-xs" style={{ color: textMuted }}>{c.year}</td>
-                        <td className="px-4 py-3 font-mono font-bold" style={{ color: '#D4AF37' }}>{c.votes.toLocaleString()}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-mono px-2 py-0.5 rounded-full" style={{ background: c.isActive ? 'rgba(0,201,167,0.1)' : 'rgba(255,122,174,0.1)', color: c.isActive ? '#00C9A7' : '#FF7AAE' }}>
-                            {c.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1.5">
-                            <button onClick={() => openEditModal(c)} className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>
-                              <Pencil size={12} />
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEditModal(c)} className="p-2 rounded-lg transition-colors hover:bg-[#D4AF37]/20" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>
+                              <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => setConfirmAction({ label: `${c.isActive ? 'Deactivate' : 'Activate'} "${c.name}"?`, action: () => toggleCandidateActive(c.id, actorName) })}
+                              onClick={() => setConfirmAction({ label: `${c.isActive ? 'Suspend' : 'Reinstate'} "${c.name}" from the active roster?`, action: () => toggleCandidateActive(c.id, actorName) })}
                               disabled={election.status === 'open' && c.isActive}
-                              title={election.status === 'open' && c.isActive ? 'Cannot deactivate while voting is open (SRS FR-2.4)' : ''}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40"
+                              className="p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                               style={{ background: c.isActive ? 'rgba(255,122,174,0.1)' : 'rgba(0,201,167,0.1)', color: c.isActive ? '#FF7AAE' : '#00C9A7' }}
                             >
-                              {c.isActive ? <XCircle size={12} /> : <CheckCircle2 size={12} />}
+                              {c.isActive ? <XCircle size={14} /> : <CheckCircle2 size={14} />}
                             </button>
                           </div>
                         </td>
@@ -381,50 +411,61 @@ export default function Admin() {
 
         {/* ── ANALYTICS ── */}
         {activeTab === 'Analytics' && (
-          <div className="space-y-7">
-            <div className="rounded-2xl border p-5" style={{ background: cardBg, borderColor: border }}>
-              <h3 className="font-display font-bold text-lg mb-4" style={{ color: textPrimary }}>Live Tally — Votes by Candidate</h3>
-              <div style={{ height: 300 }}>
+          <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
+            {/* Recharts Visualization */}
+            <div className="rounded-3xl border p-6 sm:p-8 backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="font-display font-bold text-2xl" style={{ color: textPrimary }}>Global Data Visualization</h3>
+                  <p className="text-sm mt-1" style={{ color: textMuted }}>Live bar distribution across all categories.</p>
+                </div>
+              </div>
+              <div style={{ height: 400 }} className="w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={border} />
-                    <XAxis dataKey="name" tick={{ fill: textMuted, fontSize: 11 }} />
-                    <YAxis tick={{ fill: textMuted, fontSize: 11 }} />
-                    <Tooltip contentStyle={{ background: darkMode ? '#1E1E30' : '#FFF', border: `1px solid ${border}`, borderRadius: 12, color: textPrimary }} />
-                    <Bar dataKey="votes" radius={[6, 6, 0, 0]}>
-                      {barData.map((e, i) => <Cell key={i} fill={CAT_COLORS[e.category as Category]} />)}
+                  <BarChart data={barData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} />
+                    <XAxis dataKey="name" tick={{ fill: textMuted, fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
+                    <YAxis tick={{ fill: textMuted, fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
+                    <Tooltip 
+                      cursor={{ fill: darkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}
+                      contentStyle={{ background: darkMode ? 'rgba(10,15,29,0.95)' : '#FFF', border: `1px solid ${border}`, borderRadius: '16px', color: textPrimary, boxShadow: '0 10px 30px rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}
+                      itemStyle={{ fontWeight: 'bold' }}
+                    />
+                    <Bar dataKey="votes" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                      {barData.map((e, i) => <Cell key={i} fill={CAT_COLORS[e.category as Category]} style={{ filter: 'drop-shadow(0px 0px 8px rgba(0,0,0,0.2))' }} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-5">
+            <div className="grid lg:grid-cols-2 gap-6">
               {(['king', 'queen', 'style', 'smart'] as Category[]).map(cat => {
                 const meta = CATEGORY_META[cat];
                 const catCandidates = candidates.filter(c => c.category === cat && c.isActive).map(c => ({ ...c, votes: voteCounts[c.id] ?? 0 })).sort((a, b) => b.votes - a.votes);
                 const total = catCandidates.reduce((s, c) => s + c.votes, 0);
                 return (
-                  <div key={cat} className="rounded-2xl border p-5" style={{ background: cardBg, borderColor: meta.borderColor }}>
-                    <h3 className="font-display font-bold text-lg mb-4" style={{ color: meta.color }}>
-                      {meta.icon} {meta.label} Race
-                    </h3>
-                    <div className="space-y-3">
+                  <div key={cat} className="rounded-3xl border p-6 backdrop-blur-md" style={{ background: cardBg, borderColor: meta.borderColor }}>
+                    <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+                       <span className="p-2 rounded-lg text-lg" style={{ background: `${meta.color}15`, color: meta.color }}>{meta.icon}</span>
+                       <h3 className="font-display font-bold text-xl" style={{ color: textPrimary }}>{meta.label} Race</h3>
+                    </div>
+                    <div className="space-y-5">
                       {catCandidates.map((c, i) => {
                         const pct = total > 0 ? (c.votes / total * 100) : 0;
                         return (
-                          <div key={c.id}>
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm">{['🥇', '🥈', '🥉'][i] ?? `#${i + 1}`}</span>
-                                <span className="text-sm font-medium" style={{ color: textPrimary }}>{c.name}</span>
+                          <div key={c.id} className="group">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-3">
+                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: i === 0 ? meta.color : 'rgba(255,255,255,0.05)', color: i === 0 ? '#0A0F1D' : textMuted }}>{i + 1}</span>
+                                <span className="text-sm font-bold" style={{ color: textPrimary }}>{c.name}</span>
                               </div>
                               <span className="font-mono text-sm font-bold" style={{ color: i === 0 ? meta.color : textMuted }}>
-                                {c.votes.toLocaleString()} ({pct.toFixed(1)}%)
+                                {c.votes.toLocaleString()} <span className="opacity-50 font-normal">({pct.toFixed(1)}%)</span>
                               </span>
                             </div>
-                            <div className="h-2 rounded-full overflow-hidden" style={{ background: darkMode ? '#252538' : '#F0EDE8' }}>
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: i === 0 ? meta.color : `${meta.color}55` }} />
+                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : '#F0EDE8' }}>
+                              <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${pct}%`, background: i === 0 ? meta.color : textMuted, boxShadow: i === 0 ? `0 0 10px ${meta.color}` : 'none' }} />
                             </div>
                           </div>
                         );
@@ -439,35 +480,50 @@ export default function Admin() {
 
         {/* ── AUDIT LOG ── */}
         {activeTab === 'Audit' && (
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display font-bold text-xl" style={{ color: textPrimary }}>Audit Log</h2>
-              <button onClick={exportAuditCSV} className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border" style={{ borderColor: 'rgba(212,175,55,0.3)', color: '#D4AF37' }}>
-                <Download size={12} /> Export CSV
+          <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display font-bold text-3xl" style={{ color: textPrimary }}>System Audit</h2>
+                <p className="text-sm mt-2" style={{ color: textMuted }}>Immutable log of all administrative actions.</p>
+              </div>
+              <button onClick={exportAuditCSV} className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl border transition-colors hover:bg-white/5" style={{ borderColor: border, color: textPrimary, background: cardBg }}>
+                <FileText size={16} style={{ color: '#D4AF37' }} /> Download .CSV
               </button>
             </div>
-            <div className="rounded-2xl border overflow-hidden" style={{ background: cardBg, borderColor: border }}>
+            
+            <div className="rounded-3xl border overflow-hidden backdrop-blur-md p-2" style={{ background: cardBg, borderColor: border }}>
               {auditLog.length === 0 ? (
-                <p className="px-5 py-8 text-center text-sm" style={{ color: textMuted }}>No audit entries yet.</p>
+                <div className="py-20 text-center"><p className="text-sm" style={{ color: textMuted }}>System logs are currently empty.</p></div>
               ) : (
-                <div className="divide-y" style={{ borderColor: border }}>
-                  {auditLog.map(e => (
-                    <div key={e.id} className="px-5 py-3 flex items-start gap-4">
-                      <div className="shrink-0 pt-0.5">
-                        <div className="w-2 h-2 rounded-full" style={{ background: e.action.includes('OPENED') || e.action.includes('VERIFIED') || e.action.includes('PUBLISHED') ? '#00C9A7' : e.action.includes('CLOSED') || e.action.includes('UNVERIFIED') || e.action.includes('RESET') ? '#FF7AAE' : '#D4AF37' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-bold" style={{ color: '#D4AF37' }}>{e.action}</span>
-                          <span className="text-xs" style={{ color: textMuted }}>by {e.actor}</span>
+                <div className="relative pl-6 sm:pl-10 pr-4 py-6 space-y-8">
+                  {/* Timeline connecting line */}
+                  <div className="absolute top-8 bottom-8 left-[39px] sm:left-[55px] w-px" style={{ background: border }}></div>
+                  
+                  {auditLog.map(e => {
+                     const isCritical = e.action.includes('CLOSED') || e.action.includes('RESET');
+                     const isSuccess = e.action.includes('OPENED') || e.action.includes('PUBLISHED');
+                     const logColor = isSuccess ? '#00C9A7' : isCritical ? '#FF7AAE' : '#D4AF37';
+
+                     return (
+                      <div key={e.id} className="relative flex items-start gap-6 group">
+                        <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-lg transition-transform group-hover:scale-110" style={{ background: 'rgba(10,15,29,1)', border: `2px solid ${logColor}` }}>
+                           <div className="w-2.5 h-2.5 rounded-full" style={{ background: logColor, boxShadow: `0 0 10px ${logColor}` }} />
                         </div>
-                        <p className="text-sm mt-0.5" style={{ color: textPrimary }}>{e.details}</p>
+                        <div className="flex-1 min-w-0 bg-black/10 rounded-2xl p-4 border border-white/5 transition-colors group-hover:bg-white/5">
+                          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ background: `${logColor}15`, color: logColor }}>{e.action}</span>
+                              <span className="text-xs font-medium" style={{ color: textMuted }}><Shield size={10} className="inline mr-1" />{e.actor}</span>
+                            </div>
+                            <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: textMuted }}>
+                              {new Date(e.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-sm leading-relaxed" style={{ color: textPrimary }}>{e.details}</p>
+                        </div>
                       </div>
-                      <span className="font-mono text-xs shrink-0" style={{ color: textMuted }}>
-                        {new Date(e.timestamp).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -476,162 +532,168 @@ export default function Admin() {
 
         {/* ── CONTROLS ── */}
         {activeTab === 'Controls' && (
-          <div className="max-w-lg space-y-6">
-            {/* Election lifecycle */}
-            <div className="rounded-2xl border p-6" style={{ background: cardBg, borderColor: border }}>
-              <h3 className="font-display font-bold text-lg mb-1" style={{ color: textPrimary }}>Election Control</h3>
-              <p className="text-sm mb-5" style={{ color: textMuted }}>
-                Current status: <span className="font-mono font-bold" style={{ color: '#D4AF37' }}>{election.status.toUpperCase()}</span>
+          <div className="grid lg:grid-cols-2 gap-6 animate-[fadeIn_0.3s_ease-out]">
+            {/* Network Lifecycle */}
+            <div className="rounded-3xl border p-8 backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
+              <h3 className="font-display font-bold text-2xl mb-2" style={{ color: textPrimary }}>Network Lifecycle</h3>
+              <p className="text-sm mb-8" style={{ color: textMuted }}>
+                Current state: <span className="font-mono font-bold px-2 py-0.5 rounded ml-1" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>{election.status.toUpperCase()}</span>
               </p>
-              <div className="flex items-center gap-2 mb-5">
-                {(['scheduled', 'open', 'closed', 'published'] as const).map((s, i) => (
-                  <div key={s} className="flex items-center gap-1">
-                    <div className="flex flex-col items-center gap-1">
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono border-2"
-                        style={{
-                          background: election.status === s ? 'rgba(212,175,55,0.2)' : ['scheduled','open','closed','published'].indexOf(election.status) > i ? 'rgba(0,201,167,0.1)' : 'transparent',
-                          borderColor: election.status === s ? '#D4AF37' : ['scheduled','open','closed','published'].indexOf(election.status) > i ? '#00C9A7' : border,
-                          color: election.status === s ? '#D4AF37' : '#9CA3AF',
-                        }}
-                      >
-                        {['scheduled','open','closed','published'].indexOf(election.status) > i ? <Check size={10} style={{ color: '#00C9A7' }} /> : i + 1}
+              
+              <div className="relative flex justify-between items-center mb-10">
+                <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}></div>
+                {(['scheduled', 'open', 'closed', 'published'] as const).map((s, i) => {
+                  const isActive = election.status === s;
+                  const isPast = ['scheduled','open','closed','published'].indexOf(election.status) > i;
+                  return (
+                    <div key={s} className="relative z-10 flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-mono border-2 transition-all" style={{ background: isActive ? 'rgba(212,175,55,0.2)' : isPast ? 'rgba(0,201,167,0.1)' : 'rgba(10,15,29,1)', borderColor: isActive ? '#D4AF37' : isPast ? '#00C9A7' : border, color: isActive ? '#D4AF37' : textMuted, boxShadow: isActive ? '0 0 20px rgba(212,175,55,0.3)' : 'none' }}>
+                        {isPast ? <Check size={16} style={{ color: '#00C9A7' }} /> : i + 1}
                       </div>
-                      <span className="text-xs capitalize" style={{ color: election.status === s ? '#D4AF37' : textMuted }}>{s}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isActive ? '#D4AF37' : textMuted }}>{s}</span>
                     </div>
-                    {i < 3 && <div className="w-6 h-px mb-4" style={{ background: border }} />}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  disabled={election.status === 'open'}
-                  onClick={() => setConfirmAction({ label: 'Open voting? Students will be able to cast ballots immediately.', action: () => openElection(actorName) })}
-                  className="py-3 rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: 'rgba(0,201,167,0.12)', color: '#00A98E', border: '1px solid rgba(0,201,167,0.35)' }}
-                >
-                  Open Voting
+
+              <div className="grid grid-cols-2 gap-4">
+                <button disabled={election.status === 'open'} onClick={() => setConfirmAction({ label: 'Initiate global voting phase? The network will accept ballots immediately.', action: () => openElection(actorName) })} className="py-4 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 flex justify-center items-center gap-2" style={{ background: 'rgba(0,201,167,0.1)', color: '#00C9A7', border: '1px solid rgba(0,201,167,0.4)' }}>
+                  <Activity size={16} /> Open Network
                 </button>
-                <button
-                  disabled={election.status !== 'open'}
-                  onClick={() => setConfirmAction({ label: 'Close voting? No student will be able to cast a ballot until you open it again.', action: () => closeElection(actorName) })}
-                  className="py-3 rounded-xl font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: 'rgba(255,77,141,0.10)', color: '#FF4D8D', border: '1px solid rgba(255,77,141,0.32)' }}
-                >
-                  Close Voting
+                <button disabled={election.status !== 'open'} onClick={() => setConfirmAction({ label: 'Terminate voting phase? Ballot collection will instantly cease.', action: () => closeElection(actorName) })} className="py-4 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 flex justify-center items-center gap-2" style={{ background: 'rgba(255,77,141,0.1)', color: '#FF4D8D', border: '1px solid rgba(255,77,141,0.4)' }}>
+                  <XCircle size={16} /> Close Network
                 </button>
               </div>
+              
               {(election.status === 'closed' || election.status === 'published') && (
-                <button onClick={() => setConfirmAction({ label: 'Publish the current results?', action: () => publishResults(actorName) })} className="w-full py-2 mt-3 text-sm font-medium" style={{ color: '#D4AF37' }}>
-                  Publish Results
+                <button onClick={() => setConfirmAction({ label: 'Decrypt and publish final results to public channels?', action: () => publishResults(actorName) })} className="w-full mt-4 py-4 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] flex justify-center items-center gap-2 shadow-[0_0_20px_rgba(212,175,55,0.2)]" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
+                  <Trophy size={16} /> Publish Final Results
                 </button>
               )}
             </div>
 
-            {/* Reset */}
-            <div className="rounded-2xl border p-6" style={{ background: cardBg, borderColor: 'rgba(255,122,174,0.2)' }}>
-              <div className="flex items-start gap-3 mb-4">
-                <AlertTriangle size={18} style={{ color: '#FF7AAE', flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <h3 className="font-display font-bold text-lg" style={{ color: textPrimary }}>Reset Votes</h3>
-                  <p className="text-sm mt-0.5" style={{ color: textMuted }}>Resets all vote counts. Cannot be undone.</p>
+            <div className="space-y-6">
+              {/* Danger Zone */}
+              <div className="rounded-3xl p-8 backdrop-blur-md overflow-hidden relative" style={{ background: 'rgba(255, 122, 174, 0.02)', border: '1px solid rgba(255,122,174,0.3)' }}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF7AAE] opacity-5 blur-3xl rounded-full pointer-events-none"></div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-red-500/10 text-[#FF7AAE]"><AlertTriangle size={24} /></div>
+                  <h3 className="font-display font-bold text-2xl" style={{ color: textPrimary }}>Danger Zone</h3>
                 </div>
+                <p className="text-sm mb-6 leading-relaxed" style={{ color: textMuted }}>Purge all database records. This action permanently zeroes all candidate tallies and erases the ballot ledger.</p>
+                <button onClick={() => setConfirmAction({ label: 'CRITICAL WARNING: This will permanently erase all votes. Proceed?', action: () => resetVotes(actorName) })} className="w-full py-4 rounded-xl font-bold text-sm transition-all hover:bg-red-500/20 flex justify-center items-center gap-2" style={{ background: 'rgba(255,122,174,0.1)', color: '#FF7AAE', border: '1px solid rgba(255,122,174,0.4)' }}>
+                  <RefreshCw size={16} /> Purge Database
+                </button>
               </div>
-              <button
-                onClick={() => setConfirmAction({ label: 'Reset all vote counts?', action: () => resetVotes(actorName) })}
-                className="px-4 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: 'rgba(255,122,174,0.1)', color: '#FF7AAE', border: '1px solid rgba(255,122,174,0.3)' }}
-              >
-                <RefreshCw size={13} className="inline mr-1.5" />Reset All Votes
-              </button>
-            </div>
 
-            {/* Export */}
-            <div className="rounded-2xl border p-6" style={{ background: cardBg, borderColor: border }}>
-              <h3 className="font-display font-bold text-lg mb-4" style={{ color: textPrimary }}>Export Data</h3>
-              <div className="flex gap-3 flex-wrap">
-                <button onClick={exportExcel} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'rgba(0,201,167,0.1)', color: '#00C9A7', border: '1px solid rgba(0,201,167,0.3)' }}>
-                  <Download size={14} /> Excel (Results + Audit)
-                </button>
-                <button onClick={exportPDF} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>
-                  <Download size={14} /> PDF Report
-                </button>
-                <button onClick={exportAuditCSV} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'rgba(156,163,175,0.1)', color: textMuted, border: `1px solid ${border}` }}>
-                  <FileText size={14} /> Audit CSV
-                </button>
+              {/* Data Extraction */}
+              <div className="rounded-3xl border p-8 backdrop-blur-md" style={{ background: cardBg, borderColor: border }}>
+                <h3 className="font-display font-bold text-2xl mb-6" style={{ color: textPrimary }}>Data Extraction</h3>
+                <div className="flex flex-col gap-3">
+                  <button onClick={exportExcel} className="flex items-center justify-between px-6 py-4 rounded-xl text-sm font-bold transition-colors hover:bg-white/5" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${border}` }}>
+                    <span className="flex items-center gap-3" style={{ color: textPrimary }}><Database size={16} style={{ color: '#00C9A7' }} /> Master Ledger (.XLSX)</span>
+                    <Download size={14} style={{ color: textMuted }} />
+                  </button>
+                  <button onClick={exportPDF} className="flex items-center justify-between px-6 py-4 rounded-xl text-sm font-bold transition-colors hover:bg-white/5" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${border}` }}>
+                    <span className="flex items-center gap-3" style={{ color: textPrimary }}><FileText size={16} style={{ color: '#D4AF37' }} /> Executive Summary (.PDF)</span>
+                    <Download size={14} style={{ color: textMuted }} />
+                  </button>
+                  <button onClick={exportAuditCSV} className="flex items-center justify-between px-6 py-4 rounded-xl text-sm font-bold transition-colors hover:bg-white/5" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${border}` }}>
+                    <span className="flex items-center gap-3" style={{ color: textPrimary }}><List size={16} style={{ color: textMuted }} /> Raw Audit Trail (.CSV)</span>
+                    <Download size={14} style={{ color: textMuted }} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── CONFIRM DIALOG ── */}
+      {/* ── CINEMATIC CONFIRM DIALOG ── */}
       {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
-          <div className="rounded-3xl p-6 max-w-sm w-full text-center border" style={{ background: cardBg, borderColor: 'rgba(212,175,55,0.3)' }}>
-            <AlertTriangle size={32} className="mx-auto mb-4" style={{ color: '#D4AF37' }} />
-            <h3 className="font-display font-bold text-xl mb-2" style={{ color: textPrimary }}>Confirm Action</h3>
-            <p className="text-sm mb-6" style={{ color: textMuted }}>{confirmAction.label}</p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirmAction(null)} className="flex-1 py-3 rounded-xl text-sm border" style={{ borderColor: border, color: textMuted }}>Cancel</button>
-              <button onClick={() => { confirmAction.action(); setConfirmAction(null); }} className="flex-1 py-3 rounded-xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A' }}>Confirm</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300" style={{ background: 'rgba(10,15,29,0.85)', backdropFilter: 'blur(12px)' }}>
+          <div className="rounded-3xl p-8 max-w-sm w-full text-center border relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]" style={{ background: cardBg, borderColor: 'rgba(212,175,55,0.4)' }}>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-[#D4AF37] opacity-10 blur-3xl rounded-full pointer-events-none"></div>
+            <AlertTriangle size={40} className="mx-auto mb-5 drop-shadow-lg" style={{ color: '#D4AF37' }} />
+            <h3 className="font-display font-bold text-2xl mb-3" style={{ color: textPrimary }}>Authorize Action</h3>
+            <p className="text-sm mb-8 leading-relaxed" style={{ color: textMuted }}>{confirmAction.label}</p>
+            <div className="flex gap-4">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 py-4 rounded-xl text-sm font-bold border transition-colors hover:bg-white/5" style={{ borderColor: border, color: textMuted }}>Abort</button>
+              <button onClick={() => { confirmAction.action(); setConfirmAction(null); }} className="flex-1 py-4 rounded-xl text-sm font-bold transition-transform hover:scale-105 shadow-lg" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>Proceed</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── CANDIDATE MODAL ── */}
+      {/* ── HIGH-END CANDIDATE MODAL ── */}
       {candidateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
-          <div className="relative rounded-3xl p-6 w-full max-w-lg border my-8" style={{ background: cardBg, borderColor: border }}>
-            <button className="absolute top-4 right-4" onClick={() => setCandidateModal(null)} style={{ color: textMuted }}><X size={18} /></button>
-            <h3 className="font-display font-bold text-xl mb-5" style={{ color: textPrimary }}>
-              {candidateModal.mode === 'add' ? 'Add Candidate' : 'Edit Candidate'}
-            </h3>
-            <div className="grid sm:grid-cols-2 gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ background: 'rgba(10,15,29,0.85)', backdropFilter: 'blur(12px)' }}>
+          <div className="relative rounded-3xl p-8 w-full max-w-2xl border my-8 shadow-2xl" style={{ background: cardBg, borderColor: border }}>
+            <button className="absolute top-6 right-6 p-2 rounded-full transition-colors hover:bg-white/5" onClick={() => setCandidateModal(null)} style={{ color: textMuted }}><X size={20} /></button>
+            
+            <div className="flex items-center gap-4 mb-8 border-b pb-6" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+               <div className="p-3 rounded-xl" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>
+                  {candidateModal.mode === 'add' ? <Plus size={24} /> : <Pencil size={24} />}
+               </div>
+               <div>
+                  <h3 className="font-display font-bold text-2xl" style={{ color: textPrimary }}>
+                    {candidateModal.mode === 'add' ? 'Register Candidate' : 'Modify Dossier'}
+                  </h3>
+                  <p className="text-xs font-mono mt-1" style={{ color: textMuted }}>System DB Entry</p>
+               </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-6">
               <Field label="Full Name">
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="Full name" />
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} style={inputStyle} placeholder="Official identity" />
               </Field>
-              <Field label="Nickname">
-                <input value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. KB" />
+              <Field label="Alias / Nickname">
+                <input value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} className={inputCls} style={inputStyle} placeholder="Display moniker" />
               </Field>
-              <Field label="Category">
+              <Field label="Electoral Category">
                 <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as Category }))} className={inputCls} style={inputStyle}>
-                  <option value="king">King</option>
-                  <option value="queen">Queen</option>
-                  <option value="style">Best Style</option>
-                  <option value="smart">Smartest</option>
+                  <option value="king">King (Male Lead)</option>
+                  <option value="queen">Queen (Female Lead)</option>
+                  <option value="style">Best Style (Female)</option>
+                  <option value="smart">Smartest (Male)</option>
                 </select>
               </Field>
-              <Field label="Academic Year">
+              <Field label="Academic Level">
                 <select value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} className={inputCls} style={inputStyle}>
                   {['Level 100', 'Level 200', 'Level 300', 'Level 400'].map(y => <option key={y}>{y}</option>)}
                 </select>
               </Field>
-              <Field label="Department / Major">
-                <input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} className={`${inputCls} col-span-2`} style={inputStyle} placeholder="e.g. Computer Science" />
-              </Field>
-              <Field label="Talent / Strength">
-                <input value={form.talent} onChange={e => setForm(f => ({ ...f, talent: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Leadership" />
-              </Field>
               <div className="sm:col-span-2">
-                <Field label="Photo URL (Unsplash or direct link)">
-                  <input value={form.photo} onChange={e => setForm(f => ({ ...f, photo: e.target.value }))} className={inputCls} style={inputStyle} placeholder="https://images.unsplash.com/..." />
+                <Field label="Academic Department">
+                  <input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Mechanical Engineering" />
                 </Field>
               </div>
               <div className="sm:col-span-2">
-                <Field label="Bio (short description)">
-                  <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} className={`${inputCls} resize-none`} style={{ ...inputStyle, height: 80 }} placeholder="Brief bio..." />
+                 <Field label="Core Strength">
+                  <input value={form.talent} onChange={e => setForm(f => ({ ...f, talent: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Public Speaking" />
+                </Field>
+              </div>
+              <div className="sm:col-span-2">
+                <Field label="Portrait Reference URL">
+                  <input value={form.photo} onChange={e => setForm(f => ({ ...f, photo: e.target.value }))} className={inputCls} style={inputStyle} placeholder="Secure image link (https://...)" />
+                </Field>
+                {form.photo && (
+                  <div className="mt-4 p-2 rounded-xl inline-block backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${border}` }}>
+                    <img src={form.photo} alt="Verification Preview" className="w-16 h-16 rounded-lg object-cover border" style={{ borderColor: CATEGORY_META[form.category].color }} />
+                  </div>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                <Field label="Candidate Biography">
+                  <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} className={`${inputCls} resize-none`} style={{ ...inputStyle, height: 100 }} placeholder="Background details..." />
                 </Field>
               </div>
             </div>
-            {form.photo && (
-              <img src={form.photo} alt="Preview" className="w-20 h-20 rounded-full object-cover mt-4 border-2" style={{ borderColor: CATEGORY_META[form.category].color }} />
-            )}
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setCandidateModal(null)} className="flex-1 py-3 rounded-xl text-sm border" style={{ borderColor: border, color: textMuted }}>Cancel</button>
-              <button onClick={saveCandidate} className="flex-1 py-3 rounded-xl text-sm font-bold" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A' }}>
-                {candidateModal.mode === 'add' ? 'Add Candidate' : 'Save Changes'}
+            
+            <div className="flex gap-4 mt-8 pt-6 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+              <button onClick={() => setCandidateModal(null)} className="flex-1 py-4 rounded-xl text-sm font-bold border transition-colors hover:bg-white/5" style={{ borderColor: border, color: textMuted }}>Discard</button>
+              <button onClick={saveCandidate} className="flex-1 py-4 rounded-xl text-sm font-bold transition-transform hover:scale-105 shadow-lg" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
+                {candidateModal.mode === 'add' ? 'Commit to Registry' : 'Update Record'}
               </button>
             </div>
           </div>
