@@ -25,7 +25,7 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
 const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Landing() {
-  const { darkMode, totalVotes, election, candidates } = useElection();
+  const { darkMode, totalVotes, election, candidates ,voteRecords} = useElection();
   const { isAuthenticated } = useAuth();
 
   // Dynamic countdown timer state
@@ -157,7 +157,7 @@ export default function Landing() {
         {/* Glassmorphic Stats Row */}
         <div className="flex flex-wrap justify-center gap-4 sm:gap-8 z-10 w-full max-w-4xl px-4">
           {[
-            { label: 'Verified Votes', value: totalVotes.toLocaleString(), icon: <Trophy size={18} /> },
+            { label: 'Verified Votes', value: voteRecords.length.toLocaleString(), icon: <Trophy size={18} /> },
             { label: 'Active Nominees', value: String(candidates.filter(c => c.isActive).length), icon: <Users size={18} /> },
             { label: 'Prestigious Titles', value: '4', icon: <Crown size={18} /> },
           ].map((s) => (
