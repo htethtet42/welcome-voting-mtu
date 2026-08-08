@@ -22,7 +22,7 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
   published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgba(212,175,55,0.3)', dot: '#D4AF37' },
 };
 
-const DEADLINE = new Date('2026-07-27T23:59:59');
+const DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Landing() {
   const { darkMode, totalVotes, election, candidates } = useElection();
@@ -80,14 +80,19 @@ export default function Landing() {
           The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium text-[#D4AF37]">Every vote shapes the legacy.</span>
         </p>
 
-        {election.status !== 'published' && (
-          <div className="mb-12 z-10 p-6 rounded-3xl backdrop-blur-xl border shadow-2xl" style={{ background: cardBg, borderColor: border }}>
-            <p className="text-xs font-mono tracking-widest uppercase mb-4" style={{ color: textMuted }}>
-              {election.status === 'open' ? 'Polls Close In' : election.status === 'scheduled' ? 'Polls Open In' : 'Voting Concluded'}
-            </p>
-            <CountdownTimer target={DEADLINE} darkMode={darkMode} />
-          </div>
-        )}
+        <div className="rounded-2xl p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-800">
+          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+            {election.status === 'open' ? 'Polls Are Live' : 'Polls Status'}
+          </p>
+          
+          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+            election.status === 'open' 
+              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+              : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+          }`}>
+            {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
+          </span>
+        </div>
 
         {/* Primary CTAs */}
         <div className="flex flex-wrap justify-center gap-4 z-10">
