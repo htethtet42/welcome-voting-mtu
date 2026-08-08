@@ -130,16 +130,22 @@ export default function Vote() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 text-xs font-medium text-slate-600 dark:text-slate-300">
-          <span>Polls Status:</span>
-          <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
-            election.status === 'open'
-              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-              : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
-          }`}>
-            {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
-          </span>
-        </div>
+        <div className="flex flex-wrap items-center justify-center gap-4 p-2 px-6 rounded-full bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm max-w-fit mx-auto my-6">
+        {/* Countdown Timer */}
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+        <Clock size={14} className="text-amber-500" />
+        <span>Polls Status:</span>
+        <span className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] ${
+          election.status === 'open'
+            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+            : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+        }`}>
+          {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
+        </span>
+      </div>
+
+  <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+</div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">

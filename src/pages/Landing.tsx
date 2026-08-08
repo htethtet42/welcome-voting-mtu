@@ -94,22 +94,27 @@ export default function Landing() {
           </span>
         </div>
 
-        {/* Primary CTAs */}
-        <div className="flex flex-wrap justify-center gap-4 z-10">
-          {election.status === 'open' && (
-            <Link to={isAuthenticated ? '/vote' : '/login'} className="group flex items-center gap-2 px-8 py-4 rounded-full font-bold text-sm transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(212,175,55,0.4)]" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
-              {isAuthenticated ? 'Enter Voting Booth' : 'Authenticate to Vote'} 
-              <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-            </Link>
-          )}
-          {election.status === 'published' && (
-            <Link to="/results" className="group flex items-center gap-2 px-8 py-4 rounded-full font-bold text-sm transition-all duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(212,175,55,0.4)]" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
-              <Trophy size={16} /> View Official Results
-            </Link>
-          )}
-          <Link to="/livestream" className="group flex items-center gap-2 px-8 py-4 rounded-full font-semibold text-sm border backdrop-blur-md transition-all duration-300 hover:scale-105" style={{ borderColor: border, color: textPrimary, background: cardBg }}>
-            <Radio size={16} className="text-[#FF7AAE] animate-pulse" /> Watch Live
-          </Link>
+        {/* Status Card Container */}
+      <div className="flex justify-center mb-8"> {/* <-- Added mb-8 here to create breathing room */}
+        <div className="rounded-2xl p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-800 text-center">
+          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
+            {election.status === 'open' ? 'Polls Are Live' : 'Polls Status'}
+          </p>
+    
+        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+          election.status === 'open' 
+            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+            : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+        }`}>
+          {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
+        </span>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex justify-center gap-4">
+          <Link to="/vote" className="btn-primary">Enter Voting Booth →</Link>
+          <Link to="/livestream" className="btn-secondary">Watch Live</Link>
         </div>
 
         {/* Glassmorphic Stats Row */}
