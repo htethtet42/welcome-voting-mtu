@@ -14,7 +14,7 @@ interface ElectionContextType {
   castVote: (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => 'success' | 'already_voted' | 'closed' | 'not_eligible';
 
   // Admin actions
-  openElection: (actorName: string) => void;
+  openElection: (actorName: string, autoCloseMinutes?: number) => void;
   closeElection: (actorName: string) => void;
   publishResults: (actorName: string) => void;
   addCandidate: (candidate: Omit<Candidate, 'id'>, actorName: string) => void;
@@ -46,7 +46,12 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   const [election, setElection] = useState<ElectionState>(() => {
     const stored = load<ElectionState | null>('mtu_election', null);
     if (!stored) return INITIAL_ELECTION;
-    return { ...stored, opensAt: stored.opensAt ? new Date(stored.opensAt) : null, closesAt: stored.closesAt ? new Date(stored.closesAt) : null, publishedAt: stored.publishedAt ? new Date(stored.publishedAt) : null };
+    return { 
+      ...stored, 
+      opensAt: stored.opensAt ? new Date(stored.opensAt) : null, 
+      closesAt: stored.closesAt ? new Date(stored.closesAt) : null, 
+      publishedAt: stored.publishedAt ? new Date(stored.publishedAt) : null 
+    };
   });
 
   const [candidates, setCandidates] = useState<Candidate[]>(() =>
@@ -83,7 +88,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // Auto-close at closesAt
+  // Auto-close interval checker: automatically closes election when closesAt timestamp is passed
   useEffect(() => {
     const check = () => {
       if (election.status === 'open' && election.closesAt && new Date() > election.closesAt) {
@@ -92,7 +97,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       }
     };
     check();
-    const id = setInterval(check, 30000);
+    const id = setInterval(check, 1000); // Checked every second for precise auto-closing
     return () => clearInterval(id);
   }, [election.status, election.closesAt]);
 
@@ -111,20 +116,45 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     return 'success';
   }, [election.status, voteRecords, candidates, addAudit]);
 
-  const openElection = useCallback((actorName: string) => {
-    setElection(e => ({ ...e, status: 'open', opensAt: new Date() }));
-    addAudit(actorName, 'ELECTION_OPENED', `Election "${election.name}" opened`);
-  }, [election.name, addAudit]);
+  // Updated openElection: opens immediately, with optional timer support
+  const openElection = useCallback((actorName: string, autoCloseMinutes?: number) => {
+    setElection(e => {
+      const now = new Date();
+      const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
 
+      addAudit(
+        actorName || 'Admin', 
+        'ELECTION_OPENED', 
+        `Election "${e.name}" opened${closesAt ? ` (Auto-closes in ${autoCloseMinutes} mins)` : ''}`
+      );
+
+      return { 
+        ...e, 
+        status: 'open', 
+        opensAt: now,
+        closesAt: closesAt 
+      };
+    });
+  }, [addAudit]);
+
+  // Updated closeElection: closes voting immediately
   const closeElection = useCallback((actorName: string) => {
-    setElection(e => ({ ...e, status: 'closed' }));
-    addAudit(actorName, 'ELECTION_CLOSED', `Election "${election.name}" closed — computing winners`);
-  }, [election.name, addAudit]);
+    setElection(e => {
+      addAudit(actorName || 'Admin', 'ELECTION_CLOSED', `Election "${e.name}" closed — computing winners`);
+      return { 
+        ...e, 
+        status: 'closed',
+        closesAt: new Date()
+      };
+    });
+  }, [addAudit]);
 
   const publishResults = useCallback((actorName: string) => {
-    setElection(e => ({ ...e, status: 'published', publishedAt: new Date() }));
-    addAudit(actorName, 'RESULTS_PUBLISHED', `Results for "${election.name}" published to public`);
-  }, [election.name, addAudit]);
+    setElection(e => {
+      addAudit(actorName || 'Admin', 'RESULTS_PUBLISHED', `Results for "${e.name}" published to public`);
+      return { ...e, status: 'published', publishedAt: new Date() };
+    });
+  }, [addAudit]);
 
   const addCandidate = useCallback((candidate: Omit<Candidate, 'id'>, actorName: string) => {
     const newC: Candidate = { ...candidate, id: `${candidate.category}-${Date.now()}` };
