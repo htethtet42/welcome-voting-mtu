@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { CATEGORY_META, type Category } from '../types';
 import CountdownTimer from '../components/CountdownTimer';
 
-const CATEGORIES: Category[] = ['king', 'queen','style','smart'];
+const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart'];
 const DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Vote() {
@@ -117,11 +117,18 @@ export default function Vote() {
           Select Your Candidate
         </h1>
         
+        {/* Polls Status & Voter Info Pill */}
         <div className="inline-flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 px-6 py-3 rounded-full backdrop-blur-md border shadow-sm" style={{ background: cardBg, borderColor: border }}>
           <div className="flex items-center gap-2">
-            <Clock size={16} className="animate-pulse" style={{ color: '#D4AF37' }} />
+            <Clock size={16} className={votingOpen ? "animate-pulse" : ""} style={{ color: '#D4AF37' }} />
             <span className="text-sm font-medium" style={{ color: textMuted }}>Polls Close:</span>
-            <CountdownTimer target={DEADLINE} compact darkMode={darkMode} />
+            {votingOpen ? (
+              <CountdownTimer target={DEADLINE} compact darkMode={darkMode} />
+            ) : (
+              <span className="font-bold px-2.5 py-0.5 rounded-full text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                Voting Closed
+              </span>
+            )}
           </div>
           <div className="hidden sm:block w-px h-4" style={{ background: border }}></div>
           <div className="text-xs font-mono">
@@ -129,23 +136,6 @@ export default function Vote() {
             <span className="font-bold" style={{ color: '#D4AF37' }}>{user?.studentId}</span>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-4 p-2 px-6 rounded-full bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm max-w-fit mx-auto my-6">
-        {/* Countdown Timer */}
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-        <Clock size={14} className="text-amber-500" />
-        <span>Polls Status:</span>
-        <span className={`font-bold px-2.5 py-0.5 rounded-full text-[11px] ${
-          election.status === 'open'
-            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-            : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
-        }`}>
-          {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
-        </span>
-      </div>
-
-  <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-</div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
