@@ -1,12 +1,12 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Crown, Users, Trophy, ChevronRight, Radio, ArrowRight } from 'lucide-react';
+import { Crown, Users, Trophy, ArrowRight, Clock } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
-import CountdownTimer from '../components/CountdownTimer';
 import { CANDIDATES } from '../data';
 import { CATEGORY_META, type Category, type ElectionStatus } from '../types';
 
-const CATEGORIES: Category[] = ['king', 'queen','style','smart'];
+const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart'];
 
 const CATEGORY_PROFILE_IMAGES: Record<Category, string> = {
   king: '/king.png',
@@ -22,11 +22,41 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
   published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgba(212,175,55,0.3)', dot: '#D4AF37' },
 };
 
-const DEADLINE = new Date('2026-08-17T23:59:59');
+const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Landing() {
   const { darkMode, totalVotes, election, candidates } = useElection();
   const { isAuthenticated } = useAuth();
+
+  // Dynamic countdown timer state
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+
+  useEffect(() => {
+    const targetTime = election.closesAt ? new Date(election.closesAt) : FALLBACK_DEADLINE;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const diff = targetTime.getTime() - now.getTime();
+
+      if (diff <= 0 || election.status !== 'open') {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      setTimeLeft({ days, hours, minutes, seconds });
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [election.closesAt, election.status]);
+
+  const formatNum = (num: number) => String(num).padStart(2, '0');
 
   // Refined Color Palette for "Modern Prestige"
   const bg = darkMode ? '#0A0F1D' : '#FAFAFA';
@@ -39,7 +69,7 @@ export default function Landing() {
   return (
     <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
 
-      {/* Hero Section - Enhanced with Glassmorphism and Depth */}
+      {/* Hero Section */}
       <section className="relative overflow-hidden flex flex-col items-center justify-center text-center px-4 py-24 sm:py-32 min-h-[90vh]">
         {/* Animated Background Mesh Gradient */}
         <div 
@@ -76,32 +106,56 @@ export default function Landing() {
           <span style={{ color: textPrimary }}>Voting Awards 2026</span>
         </h1>
 
-        <p className="max-w-2xl text-lg sm:text-xl mb-12 z-10 leading-relaxed font-light" style={{ color: textMuted }}>
+        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-light" style={{ color: textMuted }}>
           The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium text-[#D4AF37]">Every vote shapes the legacy.</span>
         </p>
 
-        <div className="rounded-2xl p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-800">
-          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-            {election.status === 'open' ? 'Polls Are Live' : 'Polls Status'}
-          </p>
-          
-          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-            election.status === 'open' 
-              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+        {/* --- DEADLINE PILL CONTAINER (Matching Vote.tsx) --- */}
+        <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-md backdrop-blur-md max-w-fit mx-auto mb-10 z-10">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <span>Polls Close:</span>
+            {election.status === 'open' ? (
+              <span className="font-mono text-amber-500 font-bold">
+                {formatNum(timeLeft.days)}d {formatNum(timeLeft.hours)}h {formatNum(timeLeft.minutes)}m {formatNum(timeLeft.seconds)}s
+              </span>
+            ) : (
+              <span className="font-bold text-rose-500">Voting Closed</span>
+            )}
+          </div>
+
+          <div className="h-3.5 w-px bg-slate-300 dark:bg-slate-700" />
+
+          {/* Polls Status Badge */}
+          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+            election.status === 'open'
+              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
               : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
           }`}>
             {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
           </span>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4">
-          <Link to="/vote" className="btn-primary">Enter Voting Booth →</Link>
-          <Link to="/livestream" className="btn-secondary">Watch Live</Link>
+        {/* Action Buttons with Full Design & Spacing */}
+        <div className="flex flex-wrap items-center justify-center gap-4 mb-16 z-10">
+          <Link
+            to="/vote"
+            className="px-6 py-3.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all shadow-md hover:shadow-amber-500/25 active:scale-95 flex items-center gap-2"
+          >
+            Enter Voting Booth →
+          </Link>
+
+          <Link
+            to="/livestream"
+            className="px-6 py-3.5 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 font-bold text-sm transition-all shadow-sm active:scale-95 flex items-center gap-2"
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            Watch Live
+          </Link>
         </div>
 
         {/* Glassmorphic Stats Row */}
-        <div className="flex flex-wrap justify-center gap-4 sm:gap-8 mt-20 z-10 w-full max-w-4xl px-4">
+        <div className="flex flex-wrap justify-center gap-4 sm:gap-8 z-10 w-full max-w-4xl px-4">
           {[
             { label: 'Verified Votes', value: totalVotes.toLocaleString(), icon: <Trophy size={18} /> },
             { label: 'Active Nominees', value: String(candidates.filter(c => c.isActive).length), icon: <Users size={18} /> },
@@ -116,7 +170,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Categories - Enhanced Hover States */}
+      {/* Categories */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-24">
         <div className="text-center mb-16 flex flex-col items-center">
           <div className="h-px w-24 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent mb-6"></div>
@@ -136,7 +190,6 @@ export default function Landing() {
                 className="group relative overflow-hidden rounded-3xl border p-8 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 flex items-center gap-6"
                 style={{ background: cardBg, borderColor: meta.borderColor }}
               >
-                {/* Subtle background glow based on category color */}
                 <div className="absolute -inset-4 opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-2xl" style={{ background: meta.color }}></div>
                 
                 {profileImage && (
@@ -166,7 +219,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Candidates - Cinematic Grayscale to Color Reveal */}
+      {/* Candidates */}
       <section className="py-24 border-t relative overflow-hidden" style={{ background: darkMode ? '#11111E' : '#FFFFFF', borderColor: border }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-end mb-12">
@@ -184,10 +237,8 @@ export default function Landing() {
               const meta = CATEGORY_META[c.category];
               return (
                 <Link key={c.id} to={election.status === 'open' ? `/vote?category=${c.category}` : '/results'} className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-gray-900 shadow-lg">
-                  {/* Grayscale by default, color on hover */}
                   <img src={c.photo} alt={c.name} className="w-full h-full object-cover transition-all duration-700 grayscale-[0.8] opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110" />
                   
-                  {/* Sleek lower-third gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1D] via-[#0A0F1D]/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
                   
                   <div className="absolute bottom-0 left-0 right-0 p-4 transform transition-transform duration-300 translate-y-2 group-hover:translate-y-0">
@@ -203,14 +254,13 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* How to vote - Connected Steps */}
+      {/* How to vote */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-24">
         <div className="text-center mb-16">
           <h2 className="font-display text-3xl sm:text-4xl font-bold" style={{ color: textPrimary }}>The Voting Process</h2>
         </div>
         
         <div className="relative grid sm:grid-cols-3 gap-12 max-w-4xl mx-auto">
-          {/* Connector Line (Desktop Only) */}
           <div className="hidden sm:block absolute top-8 left-[15%] right-[15%] h-[2px] z-0" style={{ background: `linear-gradient(90deg, transparent, ${border}, transparent)` }}></div>
 
           {[
