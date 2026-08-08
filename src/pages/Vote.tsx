@@ -8,7 +8,7 @@ import { CATEGORY_META, type Category } from '../types';
 import CountdownTimer from '../components/CountdownTimer';
 
 const CATEGORIES: Category[] = ['king', 'queen','style','smart'];
-const DEADLINE = new Date('2026-07-27T23:59:59');
+const DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Vote() {
   const { candidates, election, voteRecords, castVote, darkMode } = useElection();
@@ -130,12 +130,16 @@ export default function Vote() {
           </div>
         </div>
 
-        {!votingOpen && (
-          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium mt-6 backdrop-blur-md shadow-lg" style={{ background: 'rgba(255,77,141,0.15)', color: '#FF4D8D', border: '1px solid rgba(255,77,141,0.3)' }}>
-            <AlertCircle size={16} />
-            {election.status === 'closed' ? 'The voting session has officially concluded.' : election.status === 'published' ? 'Final results have been published.' : 'Polls are not yet open.'}
-          </div>
-        )}
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 text-xs font-medium text-slate-600 dark:text-slate-300">
+          <span>Polls Status:</span>
+          <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
+            election.status === 'open'
+              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+              : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+          }`}>
+            {election.status === 'open' ? 'Voting Open' : 'Voting Closed'}
+          </span>
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
