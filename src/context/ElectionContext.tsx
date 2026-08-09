@@ -55,7 +55,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   });
 
   const [candidates, setCandidates] = useState<Candidate[]>(() =>
-    load<Candidate[]>('mtu_candidates', SEED_CANDIDATES).map(candidate => {
+    load<Candidate[]>('mtu_candidates_v2', SEED_CANDIDATES).map(candidate => {
       // Repair data saved by older versions where the Style and Smart categories were reversed.
       if (candidate.id.startsWith('smart-')) return { ...candidate, category: 'smart' };
       if (candidate.id.startsWith('style-')) return { ...candidate, category: 'style' };

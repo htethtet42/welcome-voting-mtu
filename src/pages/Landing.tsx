@@ -19,7 +19,7 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
   scheduled: { label: 'Scheduled', color: '#9CA3AF', bg: 'rgba(156,163,175,0.1)', border: 'rgba(156,163,175,0.3)', dot: '#9CA3AF' },
   open:       { label: 'Voting Live', color: '#00C9A7', bg: 'rgba(0,201,167,0.15)', border: 'rgba(0,201,167,0.4)', dot: '#00C9A7' },
   closed:     { label: 'Voting Closed', color: '#FF7AAE', bg: 'rgba(255,122,174,0.1)', border: 'rgba(255,122,174,0.3)', dot: '#FF7AAE' },
-  published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgba(212,175,55,0.3)', dot: '#D4AF37' },
+  published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgb.3)', dot: '#a(212,175,55,0D4AF37' },
 };
 
 const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
