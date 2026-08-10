@@ -57,11 +57,15 @@ export default function Vote() {
   const handleConfirm = async () => {
     if (!confirmId || !confirmCandidate) return;
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 600)); // Simulating network latency
+    
     if (!user) return;
-    const result = castVote(confirmId, confirmCandidate.category, user);
+    
+    // THE FIX: We must add 'await' here because we are now talking to a real Go server!
+    const result = await castVote(confirmId, confirmCandidate.category, user);
+    
     setSubmitting(false);
     setConfirmId(null);
+    
     if (result === 'success') {
       setSuccessMsg(`Official Ballot Cast: ${confirmCandidate.name} ✓`);
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -70,6 +74,9 @@ export default function Vote() {
       setTimeout(() => setSuccessMsg(null), 3000);
     } else if (result === 'closed') {
       setSuccessMsg('The voting session is currently closed.');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } else {
+      setSuccessMsg('Network error: Ensure the database is running.');
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };

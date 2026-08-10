@@ -11,8 +11,8 @@ import Admin from './pages/Admin';
 
 export default function App() {
   return (
-    <ElectionProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <ElectionProvider>
         <HashRouter>
           <Navbar />
           <Routes>
@@ -24,7 +24,7 @@ export default function App() {
             <Route path="/admin" element={<Admin />} />
           </Routes>
         </HashRouter>
-      </AuthProvider>
-    </ElectionProvider>
+      </ElectionProvider>
+    </AuthProvider>
   );
 }

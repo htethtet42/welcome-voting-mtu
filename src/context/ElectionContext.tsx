@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { Category, ElectionState, AuditEntry, Candidate, VoteRecord } from '../types';
-import { INITIAL_VOTES, INITIAL_ELECTION, CANDIDATES as SEED_CANDIDATES } from '../data';
+import { INITIAL_ELECTION, CANDIDATES as SEED_CANDIDATES } from '../data';
+import { useAuth } from './AuthContext';
 
 interface ElectionContextType {
   election: ElectionState;
@@ -10,10 +11,11 @@ interface ElectionContextType {
   auditLog: AuditEntry[];
   darkMode: boolean;
 
-  // Voter actions
-  castVote: (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => 'success' | 'already_voted' | 'closed' | 'not_eligible';
+  // Voter actions (Database)
+  castVote: (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => Promise<'success' | 'already_voted' | 'closed' | 'not_eligible' | 'error'>;
+  fetchGlobalLedger: () => Promise<void>;
 
-  // Admin actions
+  // Admin actions (LocalStorage)
   openElection: (actorName: string, autoCloseMinutes?: number) => void;
   closeElection: (actorName: string) => void;
   publishResults: (actorName: string) => void;
@@ -31,6 +33,7 @@ interface ElectionContextType {
 
 const ElectionContext = createContext<ElectionContextType | null>(null);
 
+// Helper for LocalStorage
 function load<T>(key: string, fallback: T): T {
   try {
     const s = localStorage.getItem(key);
@@ -43,6 +46,9 @@ function makeAuditEntry(actor: string, action: string, details: string): AuditEn
 }
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
+  const { isAdmin } = useAuth();
+
+  // 1. LOCAL STORAGE STATE
   const [election, setElection] = useState<ElectionState>(() => {
     const stored = load<ElectionState | null>('mtu_election', null);
     if (!stored) return INITIAL_ELECTION;
@@ -56,19 +62,10 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const [candidates, setCandidates] = useState<Candidate[]>(() =>
     load<Candidate[]>('mtu_candidates_v2', SEED_CANDIDATES).map(candidate => {
-      // Repair data saved by older versions where the Style and Smart categories were reversed.
       if (candidate.id.startsWith('smart-')) return { ...candidate, category: 'smart' };
       if (candidate.id.startsWith('style-')) return { ...candidate, category: 'style' };
       return candidate;
     })
-  );
-
-  const [voteCounts, setVoteCounts] = useState<Record<string, number>>(() =>
-    load('mtu_votes', INITIAL_VOTES)
-  );
-
-  const [voteRecords, setVoteRecords] = useState<VoteRecord[]>(() =>
-    load<VoteRecord[]>('mtu_vote_records', []).map(record => ({ ...record, createdAt: new Date(record.createdAt) }))
   );
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
@@ -76,19 +73,28 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     return stored.map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
   });
 
-  const [darkMode, setDarkMode] = useState(() => load('mtu_dark', true));
+  const [darkMode, setDarkMode] = useState<boolean>(() => load('mtu_dark', true));
 
+  // 2. DATABASE STATE
+  const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
+  const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
+
+  const API_URL = 'http://localhost:8080/api';
+
+  const addAudit = useCallback((actor: string, action: string, details: string) => {
+    setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
+  }, []);
+
+  // Sync Local Storage
   useEffect(() => { localStorage.setItem('mtu_election', JSON.stringify(election)); }, [election]);
-  useEffect(() => { localStorage.setItem('mtu_candidates', JSON.stringify(candidates)); }, [candidates]);
-  useEffect(() => { localStorage.setItem('mtu_votes', JSON.stringify(voteCounts)); }, [voteCounts]);
-  useEffect(() => { localStorage.setItem('mtu_vote_records', JSON.stringify(voteRecords)); }, [voteRecords]);
+  useEffect(() => { localStorage.setItem('mtu_candidates_v2', JSON.stringify(candidates)); }, [candidates]);
   useEffect(() => { localStorage.setItem('mtu_audit', JSON.stringify(auditLog)); }, [auditLog]);
   useEffect(() => {
     localStorage.setItem('mtu_dark', JSON.stringify(darkMode));
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // Auto-close interval checker: automatically closes election when closesAt timestamp is passed
+  // Auto-close interval checker
   useEffect(() => {
     const check = () => {
       if (election.status === 'open' && election.closesAt && new Date() > election.closesAt) {
@@ -97,55 +103,107 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       }
     };
     check();
-    const id = setInterval(check, 1000); // Checked every second for precise auto-closing
+    const id = setInterval(check, 1000);
     return () => clearInterval(id);
-  }, [election.status, election.closesAt]);
+  }, [election.status, election.closesAt, addAudit]);
 
-  const addAudit = useCallback((actor: string, action: string, details: string) => {
-    setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
+  // --- DATABASE FUNCTIONS ---
+
+  const fetchGlobalLedger = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/ballots`);
+      if (!response.ok) throw new Error('Failed to fetch ballots');
+      
+      const data = await response.json();
+      
+      const formattedData: VoteRecord[] = data.map((record: any) => ({
+        ...record,
+        createdAt: new Date(record.createdAt)
+      }));
+      
+      setVoteRecords(formattedData);
+
+      // Re-calculate vote counts based on Database data
+      const counts: Record<string, number> = {};
+      formattedData.forEach(record => {
+        counts[record.candidateId] = (counts[record.candidateId] || 0) + 1;
+      });
+      setVoteCounts(counts);
+
+    } catch (error) {
+      console.error("Error loading global ballots:", error);
+    }
   }, []);
 
-  const castVote = useCallback((candidateId: string, category: Category, voter: { id: string; name: string; email: string }): 'success' | 'already_voted' | 'closed' | 'not_eligible' => {
+  // Fetch ledger automatically for admins
+  useEffect(() => {
+    if (isAdmin) {
+      fetchGlobalLedger();
+    }
+  }, [isAdmin, fetchGlobalLedger]);
+
+  const castVote = useCallback(async (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => {
     if (election.status !== 'open') return 'closed';
-    if (voteRecords.some(record => record.voterId === voter.id && record.category === category)) return 'already_voted';
     const candidate = candidates.find(c => c.id === candidateId && c.isActive);
     if (!candidate || candidate.category !== category) return 'not_eligible';
-    setVoteCounts(prev => ({ ...prev, [candidateId]: (prev[candidateId] ?? 0) + 1 }));
-    setVoteRecords(prev => [{ id: crypto.randomUUID(), voterId: voter.id, voterName: voter.name, voterEmail: voter.email, candidateId, category, createdAt: new Date() }, ...prev]);
-    addAudit(voter.name, 'VOTE_CAST', `Cast a ${category} ballot`);
-    return 'success';
-  }, [election.status, voteRecords, candidates, addAudit]);
 
-  // Updated openElection: opens immediately, with optional timer support
+    try {
+      const response = await fetch(`${API_URL}/votes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          voterId: voter.id,
+          voterEmail: voter.email,
+          voterName: voter.name,
+          candidateId: candidateId,
+          category: category
+        }),
+      });
+
+      if (response.status === 409) return 'already_voted';
+      if (!response.ok) throw new Error('Database insertion failed');
+
+      // Optimistically update local state so UI feels instant
+      const newRecord: VoteRecord = {
+        id: crypto.randomUUID(),
+        voterId: voter.id,
+        voterEmail: voter.email,
+        voterName: voter.name,
+        candidateId: candidateId,
+        category: category,
+        createdAt: new Date()
+      };
+
+      setVoteRecords(prev => [newRecord, ...prev]);
+      setVoteCounts(prev => ({ ...prev, [candidateId]: (prev[candidateId] || 0) + 1 }));
+      addAudit(voter.name, 'VOTE_CAST', `Cast a secure ${category} ballot`);
+      
+      return 'success';
+    } catch (error) {
+      console.error("Error casting vote:", error);
+      return 'error';
+    }
+  }, [election.status, candidates, addAudit]);
+
+  // --- ADMIN FUNCTIONS ---
+
   const openElection = useCallback((actorName: string, autoCloseMinutes?: number) => {
     setElection(e => {
       const now = new Date();
       const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
-
       addAudit(
         actorName || 'Admin', 
         'ELECTION_OPENED', 
         `Election "${e.name}" opened${closesAt ? ` (Auto-closes in ${autoCloseMinutes} mins)` : ''}`
       );
-
-      return { 
-        ...e, 
-        status: 'open', 
-        opensAt: now,
-        closesAt: closesAt 
-      };
+      return { ...e, status: 'open', opensAt: now, closesAt: closesAt };
     });
   }, [addAudit]);
 
-  // Updated closeElection: closes voting immediately
   const closeElection = useCallback((actorName: string) => {
     setElection(e => {
       addAudit(actorName || 'Admin', 'ELECTION_CLOSED', `Election "${e.name}" closed — computing winners`);
-      return { 
-        ...e, 
-        status: 'closed',
-        closesAt: new Date()
-      };
+      return { ...e, status: 'closed', closesAt: new Date() };
     });
   }, [addAudit]);
 
@@ -176,12 +234,12 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   }, [addAudit]);
 
   const resetVotes = useCallback((actorName: string) => {
-    setVoteCounts({ ...INITIAL_VOTES });
+    setVoteCounts({});
     setVoteRecords([]);
-    addAudit(actorName, 'VOTES_RESET', 'All vote counts reset to initial values');
+    addAudit(actorName, 'VOTES_RESET', 'WARNING: Local vote counts reset (DB untouched)');
   }, [addAudit]);
 
-  const toggleDarkMode = () => setDarkMode((p: boolean) => !p);
+  const toggleDarkMode = () => setDarkMode(p => !p);
 
   const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
 
@@ -193,7 +251,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   return (
     <ElectionContext.Provider value={{
       election, candidates, voteCounts, voteRecords, auditLog, darkMode,
-      castVote, openElection, closeElection, publishResults,
+      castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
       addCandidate, updateCandidate, toggleCandidateActive,
       resetVotes, toggleDarkMode,
       totalVotes, winners,
