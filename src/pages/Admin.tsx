@@ -28,7 +28,6 @@ const DEPARTMENTS = [
   'Electrical Power Engineering',
   'Electronic Engineering',
   'Computer Engineering & IT',
-  'Chemical Engineering',
   'Mechatronic Engineering',
   'Agricultural Engineering',
   'Architecture',
@@ -38,7 +37,7 @@ const DEPARTMENTS = [
 ] as const;
 
 const BLANK_FORM: CandidateForm = {
-  name: '', nickname: '', department: DEPARTMENTS[0], year: 'Level 300',
+  name: '', nickname: '', department: DEPARTMENTS[0], year: 'First year',
   category: 'king', bio: '', talent: '', photo: '', isActive: true,
 };
 const Field = ({ label, textMuted, children }: { label: string; textMuted?: string; children: React.ReactNode }) => (
@@ -672,9 +671,11 @@ export default function Admin() {
                 </select>
               </Field>
               <Field label="Academic Level">
-                <select value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} className={inputCls} style={inputStyle}>
-                  {['Level 100', 'Level 200', 'Level 300', 'Level 400'].map(y => <option key={y}>{y}</option>)}
-                </select>
+                <input value="First year"
+                readOnly
+                className={inputCls}
+                style={inputStyle}
+                />
               </Field>
               <div className="sm:col-span-2">
               <Field label="Academic Department">
