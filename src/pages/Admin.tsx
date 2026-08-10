@@ -22,13 +22,29 @@ interface CandidateForm {
   name: string; nickname: string; department: string; year: string;
   category: Category; bio: string; talent: string; photo: string; isActive: boolean;
 }
+const DEPARTMENTS = [
+  'Civil Engineering',
+  'Mechanical Engineering',
+  'Electrical Power Engineering',
+  'Electronic Engineering',
+  'Computer Engineering & IT',
+  'Chemical Engineering',
+  'Mechatronic Engineering',
+  'Agricultural Engineering',
+  'Architecture',
+  'Mining',
+  'Biotechnology',
+  'Nuclear Engineering',
+] as const;
 
 const BLANK_FORM: CandidateForm = {
-  name: '', nickname: '', department: '', year: 'Level 300',
+  name: '', nickname: '', department: DEPARTMENTS[0], year: 'Level 300',
   category: 'king', bio: '', talent: '', photo: '', isActive: true,
 };
-
-export default function Admin() {
+const Field = ({ label, textMuted, children }: { label: string; textMuted?: string; children: React.ReactNode }) => (
+    <div><label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: textMuted }}>{label}</label>{children}</div>
+  );
+export default function Admin() { 
   const {
     election, candidates, voteCounts, voteRecords, auditLog,
     darkMode, totalVotes, winners,
@@ -158,10 +174,7 @@ export default function Admin() {
 
   const inputStyle = { background: inputBg, color: textPrimary, border: `1px solid ${border}` };
   const inputCls = 'w-full px-4 py-3 rounded-xl text-sm outline-none transition-all focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]';
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div><label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: textMuted }}>{label}</label>{children}</div>
-  );
-
+  
   return (
     <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
       
@@ -664,9 +677,20 @@ export default function Admin() {
                 </select>
               </Field>
               <div className="sm:col-span-2">
-                <Field label="Academic Department">
-                  <input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Mechanical Engineering" />
-                </Field>
+              <Field label="Academic Department">
+            <select 
+            value={form.department} 
+            onChange={e => setForm(f => ({ ...f, department: e.target.value }))} 
+            className={inputCls} 
+            style={inputStyle}
+            >
+          {DEPARTMENTS.map(dept => (
+        <option key={dept} value={dept}>
+          {dept}
+        </option>
+      ))}
+       </select>
+              </Field>
               </div>
               <div className="sm:col-span-2">
                  <Field label="Core Strength">
