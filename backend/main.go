@@ -267,5 +267,5 @@ func main() {
 	fmt.Printf("Server running on port %s...\n", port)
 
 	// Wrap the whole mux with enableCORS
-	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
+	log.Fatal(http.ListenAndServe(":8080", nill))
 }
