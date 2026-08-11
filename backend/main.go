@@ -1,73 +1,75 @@
 package main
 
 import (
- "database/sql"
- "encoding/json"
- "fmt"
- "log"
- "net/http"
- "time"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"time"
 
- _ "github.com/go-sql-driver/mysql"
- "github.com/google/uuid"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 )
 
 // --- STRUCTS ---
 
 type VotePayload struct {
- VoterID     string `json:"voterId"`
- VoterEmail  string `json:"voterEmail"`
- VoterName   string `json:"voterName"`
- CandidateID string `json:"candidateId"`
- Category    string `json:"category"`
+	VoterID     string `json:"voterId"`
+	VoterEmail  string `json:"voterEmail"`
+	VoterName   string `json:"voterName"`
+	CandidateID string `json:"candidateId"`
+	Category    string `json:"category"`
 }
 
 type BallotRecord struct {
- ID          string    `json:"id"`
- VoterID     string    `json:"voterId"`
- VoterEmail  string    `json:"voterEmail"`
- VoterName   string    `json:"voterName"`
- CandidateID string    `json:"candidateId"`
- Category    string    `json:"category"`
- CreatedAt   time.Time `json:"createdAt"`
+	ID          string    `json:"id"`
+	VoterID     string    `json:"voterId"`
+	VoterEmail  string    `json:"voterEmail"`
+	VoterName   string    `json:"voterName"`
+	CandidateID string    `json:"candidateId"`
+	Category    string    `json:"category"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type Candidate struct {
- ID         string `json:"id"`
- Name       string `json:"name"`
- Nickname   string `json:"nickname"`
- Department string `json:"department"`
- Year       string `json:"year"`
- Category   string `json:"category"`
- Bio        string `json:"bio"`
- Talent     string `json:"talent"`
- Photo      string `json:"photo"`
- IsActive   bool   `json:"isActive"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Nickname   string `json:"nickname"`
+	Department string `json:"department"`
+	Year       string `json:"year"`
+	Category   string `json:"category"`
+	Bio        string `json:"bio"`
+	Talent     string `json:"talent"`
+	Photo      string `json:"photo"`
+	IsActive   bool   `json:"isActive"`
 }
 
 type ElectionStatus struct {
- Status   string     `json:"status"`
- OpensAt  *time.Time `json:"opensAt,omitempty"`
- ClosesAt *time.Time `json:"closesAt,omitempty"`
+	Status   string     `json:"status"`
+	OpensAt  *time.Time `json:"opensAt,omitempty"`
+	ClosesAt *time.Time `json:"closesAt,omitempty"`
 }
 
 type AuditLog struct {
- ID        string    `json:"id"`
- Actor     string    `json:"actor"`
- Action    string    `json:"action"`
- Details   string    `json:"details"`
- CreatedAt time.Time `json:"timestamp"`
+	ID        string    `json:"id"`
+	Actor     string    `json:"actor"`
+	Action    string    `json:"action"`
+	Details   string    `json:"details"`
+	CreatedAt time.Time `json:"timestamp"`
 }
 
-// --- MIDDLEWARE ---
+// --- GLOBAL CORS MIDDLEWARE ---
 
-// Global CORS Middleware
+// enableCORS intercepts ALL incoming HTTP requests (including OPTIONS preflights)
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 
+		// Handle browser preflight checks immediately
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -80,179 +82,190 @@ func enableCORS(next http.Handler) http.Handler {
 // --- HANDLERS ---
 
 func CastVoteHandler(db *sql.DB) http.HandlerFunc {
- return func(w http.ResponseWriter, r *http.Request) {
-  if r.Method != http.MethodPost {
-   http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-   return
-  }
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-  var payload VotePayload
-  if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-   log.Printf("Payload Decode Error: %v\n", err)
-   http.Error(w, "Invalid request body", http.StatusBadRequest)
-   return
-  }
+		var payload VotePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			log.Printf("Payload Decode Error: %v\n", err)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
 
-  // Print the incoming payload to verify the frontend sent everything
-  log.Printf("Incoming Vote Attempt: %+v\n", payload)
+		log.Printf("Incoming Vote Attempt: %+v\n", payload)
 
-  ballotID := uuid.New().String()
-  query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  
-  _, err := db.Exec(query, ballotID, payload.VoterID, payload.VoterEmail, payload.VoterName, payload.CandidateID, payload.Category, time.Now())
-  
-  if err != nil {
-   // THIS WILL REVEAL THE EXACT PROBLEM:
-   log.Printf("MySQL Insert Error: %v\n", err) 
-   
-   if len(err.Error()) >= 10 && err.Error()[:10] == "Error 1062" {
-    http.Error(w, "already_voted", http.StatusConflict)
-    return
-   }
-   http.Error(w, "Internal server error", http.StatusInternalServerError)
-   return
-  }
+		ballotID := uuid.New().String()
+		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
 
-  log.Printf("Vote successfully recorded for %s\n", payload.VoterName)
-  w.Header().Set("Content-Type", "application/json")
-  w.WriteHeader(http.StatusOK)
-  json.NewEncoder(w).Encode(map[string]string{"status": "success"})
- }
+		_, err := db.Exec(query, ballotID, payload.VoterID, payload.VoterEmail, payload.VoterName, payload.CandidateID, payload.Category, time.Now())
+
+		if err != nil {
+			log.Printf("MySQL Insert Error: %v\n", err)
+
+			if len(err.Error()) >= 10 && err.Error()[:10] == "Error 1062" {
+				http.Error(w, "already_voted", http.StatusConflict)
+				return
+			}
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		log.Printf("Vote successfully recorded for %s\n", payload.VoterName)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}
 }
 
 func GetAllBallotsHandler(db *sql.DB) http.HandlerFunc {
- return func(w http.ResponseWriter, r *http.Request) {
-  if r.Method != http.MethodGet {
-   http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-   return
-  }
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-  rows, err := db.Query(`SELECT id, voter_id, voter_email, voter_name, candidate_id, category, created_at FROM ballots ORDER BY created_at DESC`)
-  if err != nil {
-   http.Error(w, "Failed to query ballots", http.StatusInternalServerError)
-   return
-  }
-  defer rows.Close()
+		rows, err := db.Query(`SELECT id, voter_id, voter_email, voter_name, candidate_id, category, created_at FROM ballots ORDER BY created_at DESC`)
+		if err != nil {
+			log.Printf("Ballots query error: %v\n", err)
+			http.Error(w, "Failed to query ballots", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
 
-  var ballots []BallotRecord
-  for rows.Next() {
-   var b BallotRecord
-   rows.Scan(&b.ID, &b.VoterID, &b.VoterEmail, &b.VoterName, &b.CandidateID, &b.Category, &b.CreatedAt)
-   ballots = append(ballots, b)
-  }
+		var ballots []BallotRecord = []BallotRecord{}
+		for rows.Next() {
+			var b BallotRecord
+			rows.Scan(&b.ID, &b.VoterID, &b.VoterEmail, &b.VoterName, &b.CandidateID, &b.Category, &b.CreatedAt)
+			ballots = append(ballots, b)
+		}
 
-  w.Header().Set("Content-Type", "application/json")
-  json.NewEncoder(w).Encode(ballots)
- }
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ballots)
+	}
 }
 
 func CandidatesHandler(db *sql.DB) http.HandlerFunc {
- return func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Content-Type", "application/json")
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
-  if r.Method == http.MethodGet {
-   rows, _ := db.Query("SELECT id, name, nickname, department, academic_year, category, bio, talent, photo, is_active FROM candidates")
-   defer rows.Close()
+		if r.Method == http.MethodGet {
+			rows, _ := db.Query("SELECT id, name, nickname, department, academic_year, category, bio, talent, photo, is_active FROM candidates")
+			defer rows.Close()
 
-   var candidates []Candidate
-   for rows.Next() {
-    var c Candidate
-    rows.Scan(&c.ID, &c.Name, &c.Nickname, &c.Department, &c.Year, &c.Category, &c.Bio, &c.Talent, &c.Photo, &c.IsActive)
-    candidates = append(candidates, c)
-   }
-   json.NewEncoder(w).Encode(candidates)
-   return
-  }
+			var candidates []Candidate = []Candidate{}
+			for rows.Next() {
+				var c Candidate
+				rows.Scan(&c.ID, &c.Name, &c.Nickname, &c.Department, &c.Year, &c.Category, &c.Bio, &c.Talent, &c.Photo, &c.IsActive)
+				candidates = append(candidates, c)
+			}
+			json.NewEncoder(w).Encode(candidates)
+			return
+		}
 
-  if r.Method == http.MethodPost {
-   var c Candidate
-   json.NewDecoder(r.Body).Decode(&c)
-   c.ID = c.Category + "-" + uuid.New().String()[:8]
+		if r.Method == http.MethodPost {
+			var c Candidate
+			json.NewDecoder(r.Body).Decode(&c)
+			c.ID = c.Category + "-" + uuid.New().String()[:8]
 
-   db.Exec(`INSERT INTO candidates (id, name, nickname, department, academic_year, category, bio, talent, photo, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    c.ID, c.Name, c.Nickname, c.Department, c.Year, c.Category, c.Bio, c.Talent, c.Photo, c.IsActive)
-   
-   json.NewEncoder(w).Encode(c)
-   return
-  }
- }
+			db.Exec(`INSERT INTO candidates (id, name, nickname, department, academic_year, category, bio, talent, photo, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				c.ID, c.Name, c.Nickname, c.Department, c.Year, c.Category, c.Bio, c.Talent, c.Photo, c.IsActive)
+
+			json.NewEncoder(w).Encode(c)
+			return
+		}
+	}
 }
 
 func ElectionHandler(db *sql.DB) http.HandlerFunc {
- return func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Content-Type", "application/json")
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
-  if r.Method == http.MethodGet {
-   var e ElectionStatus
-   db.QueryRow("SELECT status, opens_at, closes_at FROM election_settings WHERE id = 1").Scan(&e.Status, &e.OpensAt, &e.ClosesAt)
-   json.NewEncoder(w).Encode(e)
-   return
-  }
+		if r.Method == http.MethodGet {
+			var e ElectionStatus
+			db.QueryRow("SELECT status, opens_at, closes_at FROM election_settings WHERE id = 1").Scan(&e.Status, &e.OpensAt, &e.ClosesAt)
+			json.NewEncoder(w).Encode(e)
+			return
+		}
 
-  if r.Method == http.MethodPut {
-   var e ElectionStatus
-   json.NewDecoder(r.Body).Decode(&e)
-   db.Exec("UPDATE election_settings SET status = ?, opens_at = ?, closes_at = ? WHERE id = 1", e.Status, e.OpensAt, e.ClosesAt)
-   json.NewEncoder(w).Encode(map[string]string{"message": "Election status updated"})
-   return
-  }
- }
+		if r.Method == http.MethodPut {
+			var e ElectionStatus
+			json.NewDecoder(r.Body).Decode(&e)
+			db.Exec("UPDATE election_settings SET status = ?, opens_at = ?, closes_at = ? WHERE id = 1", e.Status, e.OpensAt, e.ClosesAt)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Election status updated"})
+			return
+		}
+	}
 }
 
 func AuditHandler(db *sql.DB) http.HandlerFunc {
- return func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Content-Type", "application/json")
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
-  if r.Method == http.MethodGet {
-   rows, _ := db.Query("SELECT id, actor, action, details, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 200")
-   defer rows.Close()
+		if r.Method == http.MethodGet {
+			rows, _ := db.Query("SELECT id, actor, action, details, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 200")
+			defer rows.Close()
 
-   var logs []AuditLog
-   for rows.Next() {
-    var l AuditLog
-    rows.Scan(&l.ID, &l.Actor, &l.Action, &l.Details, &l.CreatedAt)
-    logs = append(logs, l)
-   }
-   json.NewEncoder(w).Encode(logs)
-   return
-  }
+			var logs []AuditLog = []AuditLog{}
+			for rows.Next() {
+				var l AuditLog
+				rows.Scan(&l.ID, &l.Actor, &l.Action, &l.Details, &l.CreatedAt)
+				logs = append(logs, l)
+			}
+			json.NewEncoder(w).Encode(logs)
+			return
+		}
 
-  if r.Method == http.MethodPost {
-   var l AuditLog
-   json.NewDecoder(r.Body).Decode(&l)
-   logID := uuid.New().String()
-   db.Exec("INSERT INTO audit_logs (id, actor, action, details, created_at) VALUES (?, ?, ?, ?, ?)",
-    logID, l.Actor, l.Action, l.Details, time.Now())
-   json.NewEncoder(w).Encode(map[string]string{"message": "Audit recorded"})
-   return
-  }
- }
+		if r.Method == http.MethodPost {
+			var l AuditLog
+			json.NewDecoder(r.Body).Decode(&l)
+			logID := uuid.New().String()
+			db.Exec("INSERT INTO audit_logs (id, actor, action, details, created_at) VALUES (?, ?, ?, ?, ?)",
+				logID, l.Actor, l.Action, l.Details, time.Now())
+			json.NewEncoder(w).Encode(map[string]string{"message": "Audit recorded"})
+			return
+		}
+	}
 }
 
-// --- MAIN FUNCTION (App Entry Point) ---
+// --- MAIN FUNCTION ---
+
 func main() {
- // IMPORTANT: Update "yourpassword" to your actual MySQL root password
- dsn := "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
- 
- db, err := sql.Open("mysql", dsn)
- if err != nil {
-  log.Fatalf("Error connecting to database: %v", err)
- }
- defer db.Close()
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
+	}
 
- if err := db.Ping(); err != nil {
-  log.Fatalf("Error verifying database connection: %v", err)
- }
- fmt.Println("Successfully connected to MySQL database!")
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatalf("Error connecting to database: %v", err)
+	}
+	defer db.Close()
 
- // Register Routes
-	http.HandleFunc("/api/votes", CastVoteHandler(db))
-	http.HandleFunc("/api/ballots", GetAllBallotsHandler(db))
-	http.HandleFunc("/api/candidates", CandidatesHandler(db))
-	http.HandleFunc("/api/election", ElectionHandler(db))
-	http.HandleFunc("/api/audit", AuditHandler(db))
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error verifying database connection: %v", err)
+	}
+	fmt.Println("Successfully connected to MySQL database!")
 
-	// Start Server
-	fmt.Println("Server running on port 8080...")
-	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
+	// Create a router
+	mux := http.NewServeMux()
+
+	// Register handlers directly without individual CORS wrappers
+	mux.HandleFunc("/api/votes", CastVoteHandler(db))
+	mux.HandleFunc("/api/ballots", GetAllBallotsHandler(db))
+	mux.HandleFunc("/api/candidates", CandidatesHandler(db))
+	mux.HandleFunc("/api/election", ElectionHandler(db))
+	mux.HandleFunc("/api/audit", AuditHandler(db))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("Server running on port %s...\n", port)
+
+	// Wrap the whole mux with enableCORS
+	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
 }
