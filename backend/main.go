@@ -61,20 +61,20 @@ type AuditLog struct {
 
 // --- MIDDLEWARE ---
 
-// CORSMiddleware allows the React frontend to communicate with this Go API
-func CORSMiddleware(next http.HandlerFunc) http.HandlerFunc {
- return func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Access-Control-Allow-Origin", "*")
-  w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-  w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Authorization")
+// Global CORS Middleware
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
-  if r.Method == "OPTIONS" {
-   w.WriteHeader(http.StatusOK)
-   return
-  }
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
-  next.ServeHTTP(w, r)
- }
+		next.ServeHTTP(w, r)
+	})
 }
 
 // --- HANDLERS ---
@@ -246,13 +246,13 @@ func main() {
  fmt.Println("Successfully connected to MySQL database!")
 
  // Register Routes
- http.HandleFunc("/api/votes", CORSMiddleware(CastVoteHandler(db)))
- http.HandleFunc("/api/ballots", CORSMiddleware(GetAllBallotsHandler(db)))
- http.HandleFunc("/api/candidates", CORSMiddleware(CandidatesHandler(db)))
- http.HandleFunc("/api/election", CORSMiddleware(ElectionHandler(db)))
- http.HandleFunc("/api/audit", CORSMiddleware(AuditHandler(db)))
+	http.HandleFunc("/api/votes", CastVoteHandler(db))
+	http.HandleFunc("/api/ballots", GetAllBallotsHandler(db))
+	http.HandleFunc("/api/candidates", CandidatesHandler(db))
+	http.HandleFunc("/api/election", ElectionHandler(db))
+	http.HandleFunc("/api/audit", AuditHandler(db))
 
- // Start Server
- fmt.Println("Server running on port 8080...")
- log.Fatal(http.ListenAndServe(":8080", nil))
+	// Start Server
+	fmt.Println("Server running on port 8080...")
+	log.Fatal(http.ListenAndServe(":8080", enableCORS(http.DefaultServeMux)))
 }
