@@ -79,7 +79,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
 
-  const API_URL = 'http://localhost:8080/api';
+  const API_URL = 'http://localhost:8081/api';
 
   const addAudit = useCallback((actor: string, action: string, details: string) => {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
