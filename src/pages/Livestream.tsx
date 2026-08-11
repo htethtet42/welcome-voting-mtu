@@ -28,7 +28,7 @@ export default function Livestream() {
   const chatRef = useRef<HTMLDivElement>(null);
   const extraIdx = useRef(0);
 
-  const bg = darkMode ? '#0D0D1A' : '#F8F5EF';
+  const bg = darkMode ? '#0D0D1A' : '#e7dbc5';
   const cardBg = darkMode ? '#161624' : '#FFFFFF';
   const textPrimary = darkMode ? '#F5F0E8' : '#1A1A2A';
   const textMuted = darkMode ? '#9CA3AF' : '#6B7280';

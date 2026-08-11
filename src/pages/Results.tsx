@@ -11,7 +11,7 @@ export default function Results() {
   const [activeCategory, setActiveCategory] = useState<Category>('king');
   const [revealPhase, setRevealPhase] = useState<'idle' | 'drumroll' | 'reveal'>('idle');
 
-  const bg = darkMode ? '#0D0D1A' : '#F8F5EF';
+  const bg = darkMode ? '#0D0D1A' : '#e7dbc5';
   const cardBg = darkMode ? '#161624' : '#FFFFFF';
   const textPrimary = darkMode ? '#F5F0E8' : '#1A1A2A';
   const textMuted = darkMode ? '#9CA3AF' : '#6B7280';
@@ -55,7 +55,7 @@ export default function Results() {
           </p>
           <div
             className="mt-6 inline-block px-4 py-2 rounded-full font-mono text-xs"
-            style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.25)' }}
+            style={{ background: 'rgba(201, 212, 55, 0.1)', color: '#3d3c04', border: '1px solid rgba(41, 40, 35, 0.25)' }}
           >
             Status: {election.status.toUpperCase()}
           </div>
