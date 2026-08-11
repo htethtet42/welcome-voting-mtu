@@ -290,40 +290,105 @@ export default function Vote() {
 
       {/* Official Confirmation Modal */}
       {confirmCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(10,15,29,0.85)', backdropFilter: 'blur(12px)' }}>
-          <div className="rounded-3xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] border relative overflow-hidden" style={{ background: cardBg, borderColor: CATEGORY_META[confirmCandidate.category].borderColor }}>
-            {/* Background glow in modal */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl opacity-20 pointer-events-none" style={{ background: CATEGORY_META[confirmCandidate.category].color }}></div>
-            
-            <Crown size={40} className="mx-auto mb-5 drop-shadow-md" style={{ color: CATEGORY_META[confirmCandidate.category].color }} />
-            <h3 className="font-display font-black text-2xl mb-2" style={{ color: textPrimary }}>Confirm Your Ballot</h3>
-            <p className="text-sm mb-4" style={{ color: textMuted }}>You are about to cast your official vote for:</p>
-            
-            <div className="py-4 px-6 rounded-2xl mb-6 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${border}` }}>
-               <p className="font-display font-bold text-2xl mb-1" style={{ color: CATEGORY_META[confirmCandidate.category].color }}>
-                 {confirmCandidate.name}
-               </p>
-               <p className="text-sm font-medium" style={{ color: textMuted }}>
-                 {confirmCandidate.department} · {confirmCandidate.year}
-               </p>
-            </div>
+  <div 
+    className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all" 
+    style={{ 
+      background: darkMode ? 'rgba(10,15,29,0.85)' : 'rgba(15, 23, 42, 0.65)', 
+      backdropFilter: 'blur(12px)' 
+    }}
+  >
+    <div 
+      className="rounded-3xl p-8 max-w-md w-full text-center shadow-2xl border relative overflow-hidden transition-all" 
+      style={{ 
+        background: darkMode ? '#121722' : '#FFFFFF', 
+        borderColor: CATEGORY_META[confirmCandidate.category].borderColor 
+      }}
+    >
+      {/* Background glow in modal */}
+      <div 
+        className="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl opacity-20 pointer-events-none" 
+        style={{ background: CATEGORY_META[confirmCandidate.category].color }}
+      />
+      
+      <Crown 
+        size={40} 
+        className="mx-auto mb-5 drop-shadow-md" 
+        style={{ color: CATEGORY_META[confirmCandidate.category].color }} 
+      />
+      
+      <h3 className="font-display font-black text-2xl mb-2" style={{ color: textPrimary }}>
+        Confirm Your Ballot
+      </h3>
+      
+      <p className="text-sm mb-4" style={{ color: textMuted }}>
+        You are about to cast your official vote for:
+      </p>
+      
+      {/* Candidate Highlight Box */}
+      <div 
+        className="py-4 px-6 rounded-2xl mb-6 backdrop-blur-sm shadow-inner" 
+        style={{ 
+          background: darkMode ? 'rgba(255,255,255,0.05)' : '#F3F4F6', 
+          border: darkMode ? `1px solid ${border}` : '1px solid #E5E7EB' 
+        }}
+      >
+        <p className="font-display font-bold text-2xl mb-1" style={{ color: CATEGORY_META[confirmCandidate.category].color }}>
+          {confirmCandidate.name}
+        </p>
+        <p className="text-sm font-semibold" style={{ color: darkMode ? textMuted : '#4B5563' }}>
+          {confirmCandidate.department} · {confirmCandidate.year}
+        </p>
+      </div>
 
-            <div className="flex items-center gap-3 text-left text-xs p-4 rounded-xl mb-8" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.2)' }}>
-              <AlertCircle size={24} className="flex-shrink-0" />
-              <p><strong>Warning:</strong> This action is irreversible. Once confirmed, your ballot will be permanently recorded and encrypted.</p>
-            </div>
-            
-            <div className="flex gap-4">
-              <button onClick={() => setConfirmId(null)} disabled={submitting} className="flex-1 py-4 rounded-xl text-sm font-bold border transition-all hover:bg-white/5" style={{ borderColor: border, color: textMuted }}>
-                Cancel
-              </button>
-              <button onClick={handleConfirm} disabled={submitting} className="flex-1 py-4 rounded-xl text-sm font-bold transition-all hover:scale-105 disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2 shadow-lg" style={{ background: `linear-gradient(135deg, ${CATEGORY_META[confirmCandidate.category].color}, ${CATEGORY_META[confirmCandidate.category].color}dd)`, color: '#0A0F1D' }}>
-                {submitting ? <><Clock size={16} className="animate-spin" /> Sealing...</> : 'Confirm & Seal Ballot'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Warning Alert Box - Dynamic Light/Dark Contrast */}
+      <div 
+        className="flex items-center gap-3 text-left text-xs p-4 rounded-xl mb-8 font-medium" 
+        style={{ 
+          background: darkMode ? 'rgba(212,175,55,0.1)' : '#FEF3C7', 
+          color: darkMode ? '#D4AF37' : '#92400E', 
+          border: darkMode ? '1px solid rgba(212,175,55,0.3)' : '1px solid #FCD34D' 
+        }}
+      >
+        <AlertCircle size={24} className="flex-shrink-0" />
+        <p>
+          <strong>Warning:</strong> This action is irreversible. Once confirmed, your ballot will be permanently recorded and encrypted.
+        </p>
+      </div>
+      
+      {/* Buttons */}
+      <div className="flex gap-4">
+        <button 
+          onClick={() => setConfirmId(null)} 
+          disabled={submitting} 
+          className="flex-1 py-4 rounded-xl text-sm font-bold border transition-all hover:opacity-80" 
+          style={{ 
+            borderColor: darkMode ? border : '#D1D5DB', 
+            color: darkMode ? textMuted : '#374151',
+            background: darkMode ? 'transparent' : '#F9FAFB'
+          }}
+        >
+          Cancel
+        </button>
+        
+        <button 
+          onClick={handleConfirm} 
+          disabled={submitting} 
+          className="flex-1 py-4 rounded-xl text-sm font-bold transition-all hover:scale-105 disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2 shadow-lg" 
+          style={{ 
+            background: CATEGORY_META[confirmCandidate.category].color, 
+            color: '#FFFFFF' 
+          }}
+        >
+          {submitting ? (
+            <><Clock size={16} className="animate-spin" /> Sealing...</>
+          ) : (
+            'Confirm & Seal Ballot'
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
