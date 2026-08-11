@@ -19,13 +19,13 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
   scheduled: { label: 'Scheduled', color: '#9CA3AF', bg: 'rgba(156,163,175,0.1)', border: 'rgba(156,163,175,0.3)', dot: '#9CA3AF' },
   open:       { label: 'Voting Live', color: '#00C9A7', bg: 'rgba(0,201,167,0.15)', border: 'rgba(0,201,167,0.4)', dot: '#00C9A7' },
   closed:     { label: 'Voting Closed', color: '#FF7AAE', bg: 'rgba(255,122,174,0.1)', border: 'rgba(255,122,174,0.3)', dot: '#FF7AAE' },
-  published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgb.3)', dot: '#a(212,175,55,0D4AF37' },
+  published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgba(212,175,55,0.3)', dot: '#D4AF37' },
 };
 
 const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Landing() {
-  const { darkMode, totalVotes, election, candidates ,voteRecords} = useElection();
+  const { darkMode, election, candidates, voteRecords } = useElection();
   const { isAuthenticated } = useAuth();
 
   // Dynamic countdown timer state
@@ -58,12 +58,12 @@ export default function Landing() {
 
   const formatNum = (num: number) => String(num).padStart(2, '0');
 
-  // Refined Color Palette for "Modern Prestige"
-  const bg = darkMode ? '#0A0F1D' : '#FAFAFA';
-  const cardBg = darkMode ? 'rgba(22, 22, 36, 0.6)' : 'rgba(255, 255, 255, 0.7)';
-  const textPrimary = darkMode ? '#F8F9FA' : '#111827';
-  const textMuted = darkMode ? '#9CA3AF' : '#6B7280';
-  const border = darkMode ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.3)';
+  // Updated Background Colors to Match Dark Mode Aesthetics
+  const bg = darkMode ? '#0B0E14' : '#e7dbc5';
+  const cardBg = darkMode ? 'rgba(18, 23, 34, 0.75)' : 'rgba(255, 255, 255, 0.85)';
+  const textPrimary = darkMode ? '#F8F9FA' : '#0D1117';
+  const textMuted = darkMode ? '#9CA3AF' : '#57534E';
+  const border = darkMode ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.25)';
   const sm = STATUS_META[election.status];
 
   return (
@@ -110,7 +110,7 @@ export default function Landing() {
           The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium text-[#D4AF37]">Every vote shapes the legacy.</span>
         </p>
 
-        {/* --- DEADLINE PILL CONTAINER (Matching Vote.tsx) --- */}
+        {/* --- DEADLINE PILL CONTAINER --- */}
         <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-md backdrop-blur-md max-w-fit mx-auto mb-10 z-10">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
             <Clock className="w-4 h-4 text-amber-500" />
@@ -136,7 +136,7 @@ export default function Landing() {
           </span>
         </div>
 
-        {/* Action Buttons with Full Design & Spacing */}
+        {/* Action Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-4 mb-16 z-10">
           <Link
             to="/vote"
@@ -219,8 +219,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Candidates */}
-      <section className="py-24 border-t relative overflow-hidden" style={{ background: darkMode ? '#11111E' : '#FFFFFF', borderColor: border }}>
+      {/* Candidates Section with Matching Background */}
+      <section className="py-24 border-t relative overflow-hidden" style={{ background: darkMode ? '#0E131F' : '#FFFFFF', borderColor: border }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-end mb-12">
             <div>
@@ -239,7 +239,7 @@ export default function Landing() {
                 <Link key={c.id} to={election.status === 'open' ? `/vote?category=${c.category}` : '/results'} className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-gray-900 shadow-lg">
                   <img src={c.photo} alt={c.name} className="w-full h-full object-cover transition-all duration-700 grayscale-[0.8] opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110" />
                   
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1D] via-[#0A0F1D]/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-[#0B0E14]/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
                   
                   <div className="absolute bottom-0 left-0 right-0 p-4 transform transition-transform duration-300 translate-y-2 group-hover:translate-y-0">
                     <span className="inline-block px-2 py-1 rounded backdrop-blur-md bg-white/10 border border-white/20 font-mono text-[10px] uppercase tracking-wider mb-2" style={{ color: meta.color }}>
