@@ -59,7 +59,7 @@ export default function Admin() {
   const [form, setForm] = useState<CandidateForm>(BLANK_FORM);
 
   // Modern Prestige Color Palette
-  const bg = darkMode ? '#0A0F1D' : '#FAFAFA';
+  const bg = darkMode ? '#0A0F1D' : '#e7dbc5';
   const cardBg = darkMode ? 'rgba(22, 22, 36, 0.6)' : 'rgba(255, 255, 255, 0.7)';
   const textPrimary = darkMode ? '#F8F9FA' : '#111827';
   const textMuted = darkMode ? '#9CA3AF' : '#6B7280';
