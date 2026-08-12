@@ -69,7 +69,7 @@ func enableCORS(next http.Handler) http.Handler {
   w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
   
   // ADD Bypass-Tunnel-Reminder to this list:
-  w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Bypass-Tunnel-Reminder")
+  w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Bypass-Tunnel-Reminder, bypass-tunnel-reminder")
 
   // Handle browser preflight checks immediately
   if r.Method == http.MethodOptions {
