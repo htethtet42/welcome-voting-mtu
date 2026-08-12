@@ -37,7 +37,7 @@ export default function Login() {
     // Validate email syntax and @gmail.com domain
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail.endsWith('@gmail.com')) {
-      setCustomError('Please enter with real email including syntax @gmail.com');
+      setCustomError('"Please enter a valid email address with correct syntax (e.g., example@gmail.com)."');
       return;
     }
 
@@ -239,7 +239,7 @@ export default function Login() {
                     type="email"
                     value={email}
                     onChange={e => { setEmail(e.target.value); clearError(); setCustomError(null); }}
-                    placeholder="admin@mtu.edu.mm"
+                    placeholder="..............."
                     className={`${inputClass} pl-10`}
                     style={inputStyle(!!loginError)}
                     required
