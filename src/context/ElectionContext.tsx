@@ -79,7 +79,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
 
-  const API_URL = 'http://localhost:8081/api';
+  const API_URL = 'https://mtuvotingbackend.loca.lt/api';
 
   const addAudit = useCallback((actor: string, action: string, details: string) => {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
@@ -111,7 +111,11 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const fetchGlobalLedger = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/ballots`);
+      const response = await fetch(`${API_URL}/ballots`,{
+        headers:{
+          'Bypass-Tunnel-Reminder':'true'
+        }
+      });
       if (!response.ok) throw new Error('Failed to fetch ballots');
       
       const data = await response.json();
@@ -150,7 +154,9 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch(`${API_URL}/votes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder':'true'
+         },
         body: JSON.stringify({
           voterId: voter.id,
           voterEmail: voter.email,
