@@ -28,8 +28,7 @@ export default function Livestream() {
   const chatRef = useRef<HTMLDivElement>(null);
   const extraIdx = useRef(0);
 
-  // Set this to your live YouTube video ID when you go live (e.g., "dQw4w9WgXcQ")
-  // Keep it null or empty while offline to display the custom branded banner
+  // Pass your YouTube Video ID here when you start broadcasting (e.g. "dQw4w9WgXcQ")
   const [activeVideoId] = useState<string | null>(null);
 
   const bg = darkMode ? '#0D0D1A' : '#e7dbc5';
@@ -38,7 +37,7 @@ export default function Livestream() {
   const textMuted = darkMode ? '#9CA3AF' : '#6B7280';
   const border = darkMode ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.25)';
 
-  // Auto-add chat messages
+  // Auto-add simulated live chat messages
   useEffect(() => {
     const id = setInterval(() => {
       if (extraIdx.current < EXTRA_MESSAGES.length) {
@@ -115,35 +114,35 @@ export default function Livestream() {
           {/* Video Player Section */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div
-              className="relative w-full rounded-2xl overflow-hidden border shadow-xl flex flex-col items-center justify-center text-center"
-              style={{ aspectRatio: '16/9', background: '#0A0F1D', borderColor: border }}
+              className="relative w-full rounded-2xl overflow-hidden border shadow-xl flex flex-col items-center justify-center text-center p-6 min-h-[360px] sm:min-h-0 sm:aspect-video"
+              style={{ background: '#0A0F1D', borderColor: border }}
             >
               {activeVideoId ? (
                 /* Active Stream Player */
                 <iframe
                   src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1`}
-                  className="w-full h-full border-0"
+                  className="w-full h-full border-0 absolute inset-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   title="MTU Awards 2026 Livestream"
                 />
               ) : (
-                /* Offline State (When no video is uploaded yet) */
-                <div className="p-6 flex flex-col items-center justify-center max-w-md">
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 border border-amber-500/20 bg-amber-500/10">
-                    <Tv size={32} style={{ color: '#D4AF37' }} />
+                /* Offline Banner */
+                <div className="flex flex-col items-center justify-center max-w-md my-auto py-2 z-10">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center mb-3 sm:mb-4 border border-amber-500/20 bg-amber-500/10 shrink-0">
+                    <Tv size={26} style={{ color: '#D4AF37' }} />
                   </div>
-                  
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-slate-800 text-amber-400 mb-3 border border-slate-700">
+
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] sm:text-xs font-mono font-semibold bg-slate-800 text-amber-400 mb-2 sm:mb-3 border border-slate-700">
                     <Radio size={12} className="animate-pulse" />
                     STREAM STARTING SOON
                   </div>
 
-                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                  <h3 className="text-lg sm:text-2xl font-bold text-white mb-2 leading-snug">
                     MTU Voting YouTube Channel
                   </h3>
-                  
-                  <p className="text-xs sm:text-sm text-slate-400 mb-6">
+
+                  <p className="text-xs sm:text-sm text-slate-400 mb-5 max-w-xs sm:max-w-md">
                     The ceremony hasn't started broadcasting yet. Join our channel to get notified when the broadcast begins!
                   </p>
 
@@ -151,17 +150,17 @@ export default function Livestream() {
                     href="https://youtube.com/@mtuvoting"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 transition-all hover:scale-105 shadow-lg shadow-red-600/30"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl font-bold text-xs sm:text-sm text-white bg-red-600 hover:bg-red-700 transition-all hover:scale-105 shadow-lg shadow-red-600/30 cursor-pointer active:scale-95"
                   >
-                  <Play size={18} fill="currentColor" />
-                  Open @mtuvoting on YouTube
+                    <Play size={16} fill="currentColor" />
+                    Open @mtuvoting on YouTube
                   </a>
                 </div>
               )}
 
               {/* LIVE badge overlay */}
               {activeVideoId && (
-                <div className="absolute top-4 left-4 pointer-events-none">
+                <div className="absolute top-4 left-4 pointer-events-none z-20">
                   <span
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold"
                     style={{ background: 'rgba(255,77,141,0.9)', color: '#fff' }}
