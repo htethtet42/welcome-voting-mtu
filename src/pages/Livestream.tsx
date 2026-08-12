@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Radio, Eye, MessageCircle, Send } from 'lucide-react';
+import { Radio, Eye, MessageCircle, Send, Tv, Play } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { LIVESTREAM_CHAT } from '../data';
 
@@ -28,13 +28,17 @@ export default function Livestream() {
   const chatRef = useRef<HTMLDivElement>(null);
   const extraIdx = useRef(0);
 
+  // Set this to your live YouTube video ID when you go live (e.g., "dQw4w9WgXcQ")
+  // Keep it null or empty while offline to display the custom branded banner
+  const [activeVideoId] = useState<string | null>(null);
+
   const bg = darkMode ? '#0D0D1A' : '#e7dbc5';
   const cardBg = darkMode ? '#161624' : '#FFFFFF';
   const textPrimary = darkMode ? '#F5F0E8' : '#1A1A2A';
   const textMuted = darkMode ? '#9CA3AF' : '#6B7280';
   const border = darkMode ? 'rgba(212,175,55,0.12)' : 'rgba(212,175,55,0.25)';
 
-  // Auto-add messages
+  // Auto-add chat messages
   useEffect(() => {
     const id = setInterval(() => {
       if (extraIdx.current < EXTRA_MESSAGES.length) {
@@ -85,7 +89,7 @@ export default function Livestream() {
               style={{ background: 'rgba(255,77,141,0.15)', color: '#FF4D8D', border: '1px solid rgba(255,77,141,0.3)' }}
             >
               <span className="w-2 h-2 rounded-full bg-blush-500 animate-pulse" />
-              LIVE
+              {activeVideoId ? 'LIVE' : 'OFFLINE'}
             </div>
             <div>
               <h1 className="font-display font-bold text-lg sm:text-xl" style={{ color: textPrimary }}>
@@ -108,31 +112,65 @@ export default function Livestream() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="grid lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 220px)' }}>
 
-          {/* Video Player */}
+          {/* Video Player Section */}
           <div className="lg:col-span-2 flex flex-col gap-4">
-            {/* Video embed area */}
             <div
-              className="relative w-full rounded-2xl overflow-hidden border"
-              style={{ aspectRatio: '16/9', background: '#000', borderColor: border }}
+              className="relative w-full rounded-2xl overflow-hidden border shadow-xl flex flex-col items-center justify-center text-center"
+              style={{ aspectRatio: '16/9', background: '#0A0F1D', borderColor: border }}
             >
-              {/* Placeholder stream — replace src with actual YouTube embed when available */}
-              <iframe
-                src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=0&controls=1&rel=0"
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title="MTU Awards 2026 Livestream"
-              />
+              {activeVideoId ? (
+                /* Active Stream Player */
+                <iframe
+                  src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1`}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="MTU Awards 2026 Livestream"
+                />
+              ) : (
+                /* Offline State (When no video is uploaded yet) */
+                <div className="p-6 flex flex-col items-center justify-center max-w-md">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4 border border-amber-500/20 bg-amber-500/10">
+                    <Tv size={32} style={{ color: '#D4AF37' }} />
+                  </div>
+                  
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-slate-800 text-amber-400 mb-3 border border-slate-700">
+                    <Radio size={12} className="animate-pulse" />
+                    STREAM STARTING SOON
+                  </div>
+
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                    MTU Voting YouTube Channel
+                  </h3>
+                  
+                  <p className="text-xs sm:text-sm text-slate-400 mb-6">
+                    The ceremony hasn't started broadcasting yet. Join our channel to get notified when the broadcast begins!
+                  </p>
+
+                  <a
+                    href="https://youtube.com/@mtuvoting"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 transition-all hover:scale-105 shadow-lg shadow-red-600/30"
+                  >
+                  <Play size={18} fill="currentColor" />
+                  Open @mtuvoting on YouTube
+                  </a>
+                </div>
+              )}
+
               {/* LIVE badge overlay */}
-              <div className="absolute top-4 left-4 pointer-events-none">
-                <span
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold"
-                  style={{ background: 'rgba(255,77,141,0.9)', color: '#fff' }}
-                >
-                  <Radio size={10} />
-                  LIVE
-                </span>
-              </div>
+              {activeVideoId && (
+                <div className="absolute top-4 left-4 pointer-events-none">
+                  <span
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold"
+                    style={{ background: 'rgba(255,77,141,0.9)', color: '#fff' }}
+                  >
+                    <Radio size={10} />
+                    LIVE
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Stream info */}
@@ -157,7 +195,7 @@ export default function Livestream() {
                 </div>
               </div>
 
-              {/* Upcoming */}
+              {/* Schedule */}
               <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${border}` }}>
                 <p className="text-xs font-mono uppercase tracking-widest mb-3" style={{ color: textMuted }}>
                   Schedule
@@ -273,6 +311,7 @@ export default function Livestream() {
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
