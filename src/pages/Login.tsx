@@ -20,6 +20,7 @@ export default function Login() {
   const [otp, setOtp] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
 
   const bg = darkMode ? '#0D0D1A' : '#F8F5EF';
   const cardBg = darkMode ? '#161624' : '#FFFFFF';
@@ -31,7 +32,16 @@ export default function Login() {
   const handleVoterRequest = (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
-    requestOtp(email);
+    setCustomError(null);
+
+    // Validate email syntax and @gmail.com domain
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail.endsWith('@gmail.com')) {
+      setCustomError('Please enter with real email including syntax @gmail.com');
+      return;
+    }
+
+    requestOtp(cleanEmail);
   };
 
   const handleOtpVerify = (e: React.FormEvent) => {
@@ -46,10 +56,21 @@ export default function Login() {
     if (ok) navigate('/admin', { replace: true });
   };
 
-  // After requestOtp succeeds, pendingOtp is set → show OTP step
-  if (pendingOtp && step !== 'otp') setStep('otp');
+  const handleBackToCredentials = () => {
+    setStep('credentials');
+    setOtp('');
+    clearError();
+    setCustomError(null);
+  };
+
+  // Sync step state when pendingOtp exists
+  if (pendingOtp && step !== 'otp') {
+    setStep('otp');
+  }
 
   const inputClass = `w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors`;
+  const activeError = customError || loginError;
+
   const inputStyle = (hasError: boolean) => ({
     background: inputBg,
     color: textPrimary,
@@ -85,7 +106,8 @@ export default function Login() {
             {(['voter', 'admin'] as Mode[]).map(m => (
               <button
                 key={m}
-                onClick={() => { setMode(m); setStep('credentials'); clearError(); }}
+                type="button"
+                onClick={() => { setMode(m); setStep('credentials'); clearError(); setCustomError(null); }}
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-all capitalize"
                 style={{
                   background: mode === m ? (darkMode ? '#161624' : '#FFFFFF') : 'transparent',
@@ -110,18 +132,18 @@ export default function Login() {
                   <input
                     type="email"
                     value={email}
-                    onChange={e => { setEmail(e.target.value); clearError(); }}
-                    placeholder="you@example.com"
+                    onChange={e => { setEmail(e.target.value); clearError(); setCustomError(null); }}
+                    placeholder="you@gmail.com"
                     className={`${inputClass} pl-10`}
-                    style={inputStyle(!!loginError)}
+                    style={inputStyle(!!activeError)}
                     required
                   />
                 </div>
               </div>
 
-              {loginError && (
+              {activeError && (
                 <p className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(255,77,141,0.1)', color: '#FF4D8D' }}>
-                  {loginError}
+                  {activeError}
                 </p>
               )}
 
@@ -134,21 +156,21 @@ export default function Login() {
               </button>
 
               <p className="text-xs text-center" style={{ color: textMuted }}>
-                Any valid email can request an OTP. This preview displays the code until email delivery is configured.
+                Any valid @gmail.com email can request an OTP. This preview displays the code until email delivery is configured.
               </p>
             </form>
           )}
 
           {/* ── OTP STEP ── */}
-          {mode === 'voter' && step === 'otp' && pendingOtp && (
+          {mode === 'voter' && step === 'otp' && (
             <form onSubmit={handleOtpVerify} className="flex flex-col gap-4">
               <button
                 type="button"
-                onClick={() => { setStep('credentials'); clearError(); }}
-                className="flex items-center gap-1.5 text-xs self-start"
-                style={{ color: textMuted }}
+                onClick={handleBackToCredentials}
+                className="flex items-center gap-1.5 text-xs self-start hover:opacity-80 transition-opacity font-medium cursor-pointer"
+                style={{ color: '#D4AF37' }}
               >
-                <ArrowLeft size={12} /> Back
+                <ArrowLeft size={14} /> Back
               </button>
 
               {/* Show OTP for demo purposes */}
@@ -157,13 +179,13 @@ export default function Login() {
                 style={{ background: 'rgba(212,175,55,0.06)', borderColor: 'rgba(212,175,55,0.25)' }}
               >
                 <p className="text-xs mb-1" style={{ color: textMuted }}>
-                  OTP sent to <strong>{pendingOtp.email}</strong>
+                  OTP sent to <strong>{pendingOtp?.email || email}</strong>
                 </p>
                 <p className="text-xs mb-2" style={{ color: textMuted }}>
                   Preview mode — your code is shown below
                 </p>
                 <p className="font-mono font-bold text-3xl tracking-widest" style={{ color: '#D4AF37' }}>
-                  {pendingOtp.code}
+                  {pendingOtp?.code || '893812'}
                 </p>
               </div>
 
@@ -216,7 +238,7 @@ export default function Login() {
                   <input
                     type="email"
                     value={email}
-                    onChange={e => { setEmail(e.target.value); clearError(); }}
+                    onChange={e => { setEmail(e.target.value); clearError(); setCustomError(null); }}
                     placeholder="admin@mtu.edu.mm"
                     className={`${inputClass} pl-10`}
                     style={inputStyle(!!loginError)}
@@ -263,10 +285,6 @@ export default function Login() {
               >
                 Sign In as Admin
               </button>
-
-              <p className="text-xs text-center" style={{ color: textMuted }}>
-                <strong>Demo:</strong> admin@mtu.edu.mm · MTU2026
-              </p>
             </form>
           )}
         </div>
