@@ -192,79 +192,95 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   }, [election.status, candidates, addAudit]);
 
   // --- ADMIN FUNCTIONS ---
+const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
+  try {
+    // 1. Tell the Go server to update the MySQL database to 'open'
+    await fetch(`${API_URL}/election`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true' 
+      },
+      body: JSON.stringify({ status: 'open' })
+    });
 
-  const openElection = useCallback((actorName: string, autoCloseMinutes?: number) => {
+    // 2. Update the Admin's screen locally
     setElection(e => {
       const now = new Date();
       const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
-      addAudit(
-        actorName || 'Admin', 
-        'ELECTION_OPENED', 
-        `Election "${e.name}" opened${closesAt ? ` (Auto-closes in ${autoCloseMinutes} mins)` : ''}`
-      );
       return { ...e, status: 'open', opensAt: now, closesAt: closesAt };
     });
-  }, [addAudit]);
 
-  const closeElection = useCallback((actorName: string) => {
+    // Side-effects like audit logging should be called outside the state setter function
     setElection(e => {
-      addAudit(actorName || 'Admin', 'ELECTION_CLOSED', `Election "${e.name}" closed — computing winners`);
-      return { ...e, status: 'closed', closesAt: new Date() };
+      const closesAt = autoCloseMinutes ? ` (Auto-closes in ${autoCloseMinutes} mins)` : '';
+      addAudit(actorName || 'Admin', 'ELECTION_OPENED', `Election "${e.name}" opened${closesAt}`);
+      return e;
     });
-  }, [addAudit]);
+  } catch (error) {
+    console.error("Error opening election on server:", error);
+  }
+}, [addAudit]);
 
-  const publishResults = useCallback((actorName: string) => {
-    setElection(e => {
-      addAudit(actorName || 'Admin', 'RESULTS_PUBLISHED', `Results for "${e.name}" published to public`);
-      return { ...e, status: 'published', publishedAt: new Date() };
-    });
-  }, [addAudit]);
+const closeElection = useCallback((actorName: string) => {
+  setElection(e => {
+    addAudit(actorName || 'Admin', 'ELECTION_CLOSED', `Election "${e.name}" closed — computing winners`);
+    return { ...e, status: 'closed', closesAt: new Date() };
+  });
+}, [addAudit]);
 
-  const addCandidate = useCallback((candidate: Omit<Candidate, 'id'>, actorName: string) => {
-    const newC: Candidate = { ...candidate, id: `${candidate.category}-${Date.now()}` };
-    setCandidates(prev => [...prev, newC]);
-    addAudit(actorName, 'CANDIDATE_ADDED', `Added candidate "${newC.name}" (${newC.category})`);
-  }, [addAudit]);
+const publishResults = useCallback((actorName: string) => {
+  setElection(e => {
+    addAudit(actorName || 'Admin', 'RESULTS_PUBLISHED', `Results for "${e.name}" published to public`);
+    return { ...e, status: 'published', publishedAt: new Date() };
+  });
+}, [addAudit]);
 
-  const updateCandidate = useCallback((id: string, updates: Partial<Candidate>, actorName: string) => {
-    setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    addAudit(actorName, 'CANDIDATE_UPDATED', `Updated candidate ${id}`);
-  }, [addAudit]);
+const addCandidate = useCallback((candidate: Omit<Candidate, 'id'>, actorName: string) => {
+  const newC: Candidate = { ...candidate, id: `${candidate.category}-${Date.now()}` };
+  setCandidates(prev => [...prev, newC]);
+  addAudit(actorName, 'CANDIDATE_ADDED', `Added candidate "${newC.name}" (${newC.category})`);
+}, [addAudit]);
 
-  const toggleCandidateActive = useCallback((id: string, actorName: string) => {
-    setCandidates(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      addAudit(actorName, c.isActive ? 'CANDIDATE_DEACTIVATED' : 'CANDIDATE_ACTIVATED', `${c.isActive ? 'Deactivated' : 'Activated'} candidate "${c.name}"`);
-      return { ...c, isActive: !c.isActive };
-    }));
-  }, [addAudit]);
+const updateCandidate = useCallback((id: string, updates: Partial<Candidate>, actorName: string) => {
+  setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  addAudit(actorName, 'CANDIDATE_UPDATED', `Updated candidate ${id}`);
+}, [addAudit]);
 
-  const resetVotes = useCallback((actorName: string) => {
-    setVoteCounts({});
-    setVoteRecords([]);
-    addAudit(actorName, 'VOTES_RESET', 'WARNING: Local vote counts reset (DB untouched)');
-  }, [addAudit]);
+const toggleCandidateActive = useCallback((id: string, actorName: string) => {
+  setCandidates(prev => prev.map(c => {
+    if (c.id !== id) return c;
+    addAudit(actorName, c.isActive ? 'CANDIDATE_DEACTIVATED' : 'CANDIDATE_ACTIVATED', `${c.isActive ? 'Deactivated' : 'Activated'} candidate "${c.name}"`);
+    return { ...c, isActive: !c.isActive };
+  }));
+}, [addAudit]);
 
-  const toggleDarkMode = () => setDarkMode(p => !p);
+const resetVotes = useCallback((actorName: string) => {
+  setVoteCounts({});
+  setVoteRecords([]);
+  addAudit(actorName, 'VOTES_RESET', 'WARNING: Local vote counts reset (DB untouched)');
+}, [addAudit]);
 
-  const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+const toggleDarkMode = () => setDarkMode(p => !p);
 
-  const winners = (['king', 'queen', 'style', 'smart'] as Category[]).reduce((result, category) => {
-    result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
-    return result;
-  }, {} as Record<Category, Candidate | null>);
+const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
 
-  return (
-    <ElectionContext.Provider value={{
-      election, candidates, voteCounts, voteRecords, auditLog, darkMode,
-      castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
-      addCandidate, updateCandidate, toggleCandidateActive,
-      resetVotes, toggleDarkMode,
-      totalVotes, winners,
-    }}>
-      {children}
-    </ElectionContext.Provider>
-  );
+const winners = (['king', 'queen', 'style', 'smart'] as Category[]).reduce((result, category) => {
+  result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
+  return result;
+}, {} as Record<Category, Candidate | null>);
+
+return (
+  <ElectionContext.Provider value={{
+    election, candidates, voteCounts, voteRecords, auditLog, darkMode,
+    castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
+    addCandidate, updateCandidate, toggleCandidateActive,
+    resetVotes, toggleDarkMode,
+    totalVotes, winners,
+  }}>
+    {children}
+  </ElectionContext.Provider>
+);
 }
 
 export function useElection() {
