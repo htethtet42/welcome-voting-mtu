@@ -15,7 +15,7 @@ interface ElectionContextType {
   castVote: (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => Promise<'success' | 'already_voted' | 'closed' | 'not_eligible' | 'error'>;
   fetchGlobalLedger: () => Promise<void>;
 
-  // Admin actions (LocalStorage)
+  // Admin actions
   openElection: (actorName: string, autoCloseMinutes?: number) => void;
   closeElection: (actorName: string) => void;
   publishResults: (actorName: string) => void;
@@ -33,7 +33,6 @@ interface ElectionContextType {
 
 const ElectionContext = createContext<ElectionContextType | null>(null);
 
-// Helper for LocalStorage
 function load<T>(key: string, fallback: T): T {
   try {
     const s = localStorage.getItem(key);
@@ -46,9 +45,8 @@ function makeAuditEntry(actor: string, action: string, details: string): AuditEn
 }
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
-   useAuth();
+  const { isAdmin } = useAuth();
 
-  // 1. LOCAL STORAGE STATE
   const [election, setElection] = useState<ElectionState>(() => {
     const stored = load<ElectionState | null>('mtu_election', null);
     if (!stored) return INITIAL_ELECTION;
@@ -74,8 +72,6 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   });
 
   const [darkMode, setDarkMode] = useState<boolean>(() => load('mtu_dark', true));
-
-  // 2. DATABASE STATE
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
 
@@ -94,6 +90,34 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
+  // Sync status from Go database every 3 seconds
+  useEffect(() => {
+    const syncStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/election`, {
+          headers: { 'Bypass-Tunnel-Reminder': 'true' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status) {
+            setElection(prev => ({
+              ...prev,
+              status: data.status,
+              opensAt: data.opensAt ? new Date(data.opensAt) : null,
+              closesAt: data.closesAt ? new Date(data.closesAt) : null,
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch status from server:", err);
+      }
+    };
+
+    syncStatus();
+    const interval = setInterval(syncStatus, 3000);
+    return () => clearInterval(interval);
+  }, [API_URL]);
+
   // Auto-close interval checker
   useEffect(() => {
     const check = () => {
@@ -111,15 +135,12 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const fetchGlobalLedger = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/ballots`,{
-        headers:{
-          'Bypass-Tunnel-Reminder':'true'
-        }
+      const response = await fetch(`${API_URL}/ballots`, {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' }
       });
       if (!response.ok) throw new Error('Failed to fetch ballots');
       
       const data = await response.json();
-      
       const formattedData: VoteRecord[] = data.map((record: any) => ({
         ...record,
         createdAt: new Date(record.createdAt)
@@ -127,7 +148,6 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       
       setVoteRecords(formattedData);
 
-      // Re-calculate vote counts based on Database data
       const counts: Record<string, number> = {};
       formattedData.forEach(record => {
         counts[record.candidateId] = (counts[record.candidateId] || 0) + 1;
@@ -137,35 +157,13 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error loading global ballots:", error);
     }
-  }, []);
+  }, [API_URL]);
 
-  // Sync status from Go database every 3 seconds so ALL devices update
-useEffect(() => {
-  const syncStatus = async () => {
-    try {
-      const res = await fetch(`${API_URL}/election`, {
-        headers: { 'Bypass-Tunnel-Reminder': 'true' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.status) {
-          setElection(prev => ({
-            ...prev,
-            status: data.status,
-            opensAt: data.opensAt ? new Date(data.opensAt) : prev.opensAt,
-            closesAt: data.closesAt ? new Date(data.closesAt) : prev.closesAt,
-          }));
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch status from server:", err);
+  useEffect(() => {
+    if (isAdmin) {
+      fetchGlobalLedger();
     }
-  };
-
-  syncStatus();
-  const interval = setInterval(syncStatus, 3000);
-  return () => clearInterval(interval);
-}, [API_URL]);
+  }, [isAdmin, fetchGlobalLedger]);
 
   const castVote = useCallback(async (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => {
     if (election.status !== 'open') return 'closed';
@@ -175,9 +173,10 @@ useEffect(() => {
     try {
       const response = await fetch(`${API_URL}/votes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder':'true'
-         },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
+        },
         body: JSON.stringify({
           voterId: voter.id,
           voterEmail: voter.email,
@@ -190,7 +189,6 @@ useEffect(() => {
       if (response.status === 409) return 'already_voted';
       if (!response.ok) throw new Error('Database insertion failed');
 
-      // Optimistically update local state so UI feels instant
       const newRecord: VoteRecord = {
         id: crypto.randomUUID(),
         voterId: voter.id,
@@ -210,98 +208,117 @@ useEffect(() => {
       console.error("Error casting vote:", error);
       return 'error';
     }
-  }, [election.status, candidates, addAudit]);
+  }, [election.status, candidates, addAudit, API_URL]);
 
   // --- ADMIN FUNCTIONS ---
-const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
-  try {
-    // 1. Tell the Go server to update the MySQL database to 'open'
-    await fetch(`${API_URL}/election`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true' 
-      },
-      body: JSON.stringify({ status: 'open' })
-    });
 
-    // 2. Update the Admin's screen locally
-    setElection(e => {
-      const now = new Date();
-      const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
-      return { ...e, status: 'open', opensAt: now, closesAt: closesAt };
-    });
+  const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
+    const now = new Date();
+    const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
 
-    // Side-effects like audit logging should be called outside the state setter function
-    setElection(e => {
-      const closesAt = autoCloseMinutes ? ` (Auto-closes in ${autoCloseMinutes} mins)` : '';
-      addAudit(actorName || 'Admin', 'ELECTION_OPENED', `Election "${e.name}" opened${closesAt}`);
-      return e;
-    });
-  } catch (error) {
-    console.error("Error opening election on server:", error);
-  }
-}, [addAudit]);
+    try {
+      await fetch(`${API_URL}/election`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true' 
+        },
+        body: JSON.stringify({ 
+          status: 'open',
+          opensAt: now.toISOString(),
+          closesAt: closesAt ? closesAt.toISOString() : null
+        })
+      });
 
-const closeElection = useCallback((actorName: string) => {
-  setElection(e => {
-    addAudit(actorName || 'Admin', 'ELECTION_CLOSED', `Election "${e.name}" closed — computing winners`);
-    return { ...e, status: 'closed', closesAt: new Date() };
-  });
-}, [addAudit]);
+      setElection(e => ({ ...e, status: 'open', opensAt: now, closesAt: closesAt }));
+      const closesAtText = autoCloseMinutes ? ` (Auto-closes in ${autoCloseMinutes} mins)` : '';
+      addAudit(actorName || 'Admin', 'ELECTION_OPENED', `Election opened${closesAtText}`);
+    } catch (error) {
+      console.error("Error opening election on server:", error);
+    }
+  }, [addAudit, API_URL]);
 
-const publishResults = useCallback((actorName: string) => {
-  setElection(e => {
-    addAudit(actorName || 'Admin', 'RESULTS_PUBLISHED', `Results for "${e.name}" published to public`);
-    return { ...e, status: 'published', publishedAt: new Date() };
-  });
-}, [addAudit]);
+  const closeElection = useCallback(async (actorName: string) => {
+    try {
+      await fetch(`${API_URL}/election`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true' 
+        },
+        body: JSON.stringify({ status: 'closed', closesAt: new Date().toISOString() })
+      });
+    } catch (err) {
+      console.error("Error closing election on server:", err);
+    }
 
-const addCandidate = useCallback((candidate: Omit<Candidate, 'id'>, actorName: string) => {
-  const newC: Candidate = { ...candidate, id: `${candidate.category}-${Date.now()}` };
-  setCandidates(prev => [...prev, newC]);
-  addAudit(actorName, 'CANDIDATE_ADDED', `Added candidate "${newC.name}" (${newC.category})`);
-}, [addAudit]);
+    setElection(e => ({ ...e, status: 'closed', closesAt: new Date() }));
+    addAudit(actorName || 'Admin', 'ELECTION_CLOSED', 'Election closed — computing winners');
+  }, [addAudit, API_URL]);
 
-const updateCandidate = useCallback((id: string, updates: Partial<Candidate>, actorName: string) => {
-  setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-  addAudit(actorName, 'CANDIDATE_UPDATED', `Updated candidate ${id}`);
-}, [addAudit]);
+  const publishResults = useCallback(async (actorName: string) => {
+    try {
+      await fetch(`${API_URL}/election`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true' 
+        },
+        body: JSON.stringify({ status: 'published' })
+      });
+    } catch (err) {
+      console.error("Error publishing election on server:", err);
+    }
 
-const toggleCandidateActive = useCallback((id: string, actorName: string) => {
-  setCandidates(prev => prev.map(c => {
-    if (c.id !== id) return c;
-    addAudit(actorName, c.isActive ? 'CANDIDATE_DEACTIVATED' : 'CANDIDATE_ACTIVATED', `${c.isActive ? 'Deactivated' : 'Activated'} candidate "${c.name}"`);
-    return { ...c, isActive: !c.isActive };
-  }));
-}, [addAudit]);
+    setElection(e => ({ ...e, status: 'published', publishedAt: new Date() }));
+    addAudit(actorName || 'Admin', 'RESULTS_PUBLISHED', 'Results published to public');
+  }, [addAudit, API_URL]);
 
-const resetVotes = useCallback((actorName: string) => {
-  setVoteCounts({});
-  setVoteRecords([]);
-  addAudit(actorName, 'VOTES_RESET', 'WARNING: Local vote counts reset (DB untouched)');
-}, [addAudit]);
+  const addCandidate = useCallback((candidate: Omit<Candidate, 'id'>, actorName: string) => {
+    const newC: Candidate = { ...candidate, id: `${candidate.category}-${Date.now()}` };
+    setCandidates(prev => [...prev, newC]);
+    addAudit(actorName, 'CANDIDATE_ADDED', `Added candidate "${newC.name}" (${newC.category})`);
+  }, [addAudit]);
 
-const toggleDarkMode = () => setDarkMode(p => !p);
+  const updateCandidate = useCallback((id: string, updates: Partial<Candidate>, actorName: string) => {
+    setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    addAudit(actorName, 'CANDIDATE_UPDATED', `Updated candidate ${id}`);
+  }, [addAudit]);
 
-const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+  const toggleCandidateActive = useCallback((id: string, actorName: string) => {
+    setCandidates(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      addAudit(actorName, c.isActive ? 'CANDIDATE_DEACTIVATED' : 'CANDIDATE_ACTIVATED', `${c.isActive ? 'Deactivated' : 'Activated'} candidate "${c.name}"`);
+      return { ...c, isActive: !c.isActive };
+    }));
+  }, [addAudit]);
 
-const winners = (['king', 'queen', 'style', 'smart'] as Category[]).reduce((result, category) => {
-  result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
-  return result;
-}, {} as Record<Category, Candidate | null>);
+  const resetVotes = useCallback((actorName: string) => {
+    setVoteCounts({});
+    setVoteRecords([]);
+    addAudit(actorName, 'VOTES_RESET', 'WARNING: Local vote counts reset (DB untouched)');
+  }, [addAudit]);
 
-return (
-  <ElectionContext.Provider value={{
-    election, candidates, voteCounts, voteRecords, auditLog, darkMode,
-    castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
-    addCandidate, updateCandidate, toggleCandidateActive,
-    resetVotes, toggleDarkMode,
-    totalVotes, winners,
-  }}>
-    {children}
-  </ElectionContext.Provider>
-);
+  const toggleDarkMode = () => setDarkMode(p => !p);
+
+  const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+
+  const winners = (['king', 'queen', 'style', 'smart'] as Category[]).reduce((result, category) => {
+    result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
+    return result;
+  }, {} as Record<Category, Candidate | null>);
+
+  return (
+    <ElectionContext.Provider value={{
+      election, candidates, voteCounts, voteRecords, auditLog, darkMode,
+      castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
+      addCandidate, updateCandidate, toggleCandidateActive,
+      resetVotes, toggleDarkMode,
+      totalVotes, winners,
+    }}>
+      {children}
+    </ElectionContext.Provider>
+  );
 }
 
 export function useElection() {
