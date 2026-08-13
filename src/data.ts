@@ -151,7 +151,7 @@ export const CANDIDATES: Candidate[] = [
 
 
 export const ADMIN_EMAIL = 'admin@mtu.edu.mm';
-export const ADMIN_PASSWORD = 'MTU2026';
+export const ADMIN_PASSWORD = 'MTUfresher&2026';
 
 export const INITIAL_ELECTION: ElectionState = {
   id: 'elect-2026',
