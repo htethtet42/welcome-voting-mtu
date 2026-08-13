@@ -139,12 +139,33 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch ledger automatically for admins
-  useEffect(() => {
-    if (isAdmin) {
-      fetchGlobalLedger();
+  // Sync status from Go database every 3 seconds so ALL devices update
+useEffect(() => {
+  const syncStatus = async () => {
+    try {
+      const res = await fetch(`${API_URL}/election`, {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.status) {
+          setElection(prev => ({
+            ...prev,
+            status: data.status,
+            opensAt: data.opensAt ? new Date(data.opensAt) : prev.opensAt,
+            closesAt: data.closesAt ? new Date(data.closesAt) : prev.closesAt,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch status from server:", err);
     }
-  }, [isAdmin, fetchGlobalLedger]);
+  };
+
+  syncStatus();
+  const interval = setInterval(syncStatus, 3000);
+  return () => clearInterval(interval);
+}, [API_URL]);
 
   const castVote = useCallback(async (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => {
     if (election.status !== 'open') return 'closed';
