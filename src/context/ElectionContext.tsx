@@ -46,7 +46,7 @@ function makeAuditEntry(actor: string, action: string, details: string): AuditEn
 }
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
-  const { isAdmin } = useAuth();
+   useAuth();
 
   // 1. LOCAL STORAGE STATE
   const [election, setElection] = useState<ElectionState>(() => {
