@@ -50,10 +50,9 @@ export default function Vote() {
   ) as Partial<Record<Category, boolean>>;
   const hasVoted = !!votedCategories[activeCategory];
   const votingOpen = election.status === 'open';
-  const electionName = election?.type === 'major';
   const isMajorWelcome = election?.type === 'major';
   const visibleCategories = CATEGORIES.filter(category => {
-  const catId = typeof category === 'string' ? category : category.id;
+  const catId = category;
   if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
     return false; 
   }

@@ -15,13 +15,28 @@ import { CATEGORY_META, type Category, type Candidate } from '../types';
 const TABS = ['Overview', 'Candidates', 'Ballots', 'Analytics', 'Audit', 'Controls'] as const;
 type Tab = typeof TABS[number];
 
-// Upgraded neon/solid colors for charts against dark backgrounds
-const CAT_COLORS: Record<Category, string> = { king: '#60A5FA', queen: '#FF7AAE' ,style:'#00C9A7',smart:'#D4AF37'};
+// Upgraded colors covering all six categories
+const CAT_COLORS: Record<Category, string> = {
+  king: '#60A5FA',
+  queen: '#FF7AAE',
+  style: '#A78BFA',
+  smart: '#2EDBB8',
+  popular_man: '#2EDBB8',
+  popular_woman: '#A78BFA',
+};
 
 interface CandidateForm {
-  name: string; nickname: string; department: string; year: string;
-  category: Category; bio: string; talent: string; photo: string; isActive: boolean;
+  name: string;
+  nickname: string;
+  department: string;
+  year: string;
+  category: Category;
+  bio: string;
+  talent: string;
+  photo: string;
+  isActive: boolean;
 }
+
 const DEPARTMENTS = [
   'Civil Engineering',
   'Mechanical Engineering',
@@ -37,13 +52,27 @@ const DEPARTMENTS = [
 ] as const;
 
 const BLANK_FORM: CandidateForm = {
-  name: '', nickname: '', department: DEPARTMENTS[0], year: 'First year',
-  category: 'king', bio: '', talent: '', photo: '', isActive: true,
+  name: '',
+  nickname: '',
+  department: DEPARTMENTS[0],
+  year: 'First year',
+  category: 'king',
+  bio: '',
+  talent: '',
+  photo: '',
+  isActive: true,
 };
+
 const Field = ({ label, textMuted, children }: { label: string; textMuted?: string; children: React.ReactNode }) => (
-    <div><label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: textMuted }}>{label}</label>{children}</div>
-  );
-export default function Admin() { 
+  <div>
+    <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: textMuted }}>
+      {label}
+    </label>
+    {children}
+  </div>
+);
+
+export default function Admin() {
   const {
     election, candidates, voteCounts, voteRecords, auditLog,
     darkMode, totalVotes, winners,
@@ -88,7 +117,7 @@ export default function Admin() {
     );
   }
 
-  // === Data Logic (Preserved) ===
+  // === Data Logic ===
   const allData = useMemo(() => candidates.map(c => ({
     ...c, votes: voteCounts[c.id] ?? 0, meta: CATEGORY_META[c.category],
   })).sort((a, b) => a.category.localeCompare(b.category) || b.votes - a.votes), [candidates, voteCounts]);
@@ -100,7 +129,8 @@ export default function Admin() {
   }));
 
   const participatingVoterCount = new Set(voteRecords.map(record => record.voterId)).size;
-  const turnout = participatingVoterCount > 0 ? Math.round((voteRecords.length / (participatingVoterCount * 4)) * 100) : 0;
+  const turnout = participatingVoterCount > 0 ? Math.round((voteRecords.length / (participatingVoterCount * 6)) * 100) : 0;
+  
   const ballotRows = useMemo(() => {
     const byVoter = new Map<string, { name: string; email: string; votes: Partial<Record<Category, string>>; lastVote: Date }>();
     voteRecords.forEach(record => {
@@ -112,10 +142,10 @@ export default function Admin() {
     return [...byVoter.values()].sort((a, b) => new Date(b.lastVote).getTime() - new Date(a.lastVote).getTime());
   }, [voteRecords, candidates]);
 
-  // === Export Logic (Preserved) ===
+  // === Export Logic ===
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(allData.map(c => ({ Category: c.meta.label, Name: c.name, Nickname: c.nickname, Department: c.department, Year: c.year, Votes: c.votes, Active: c.isActive ? 'Yes' : 'No' })));
+    const ws = XLSX.utils.json_to_sheet(allData.map(c => ({ Category: c.meta.label, Name: c.name, Nickname: c.nickname ?? '', Department: c.department ?? '', Year: c.year ?? '', Votes: c.votes, Active: c.isActive ? 'Yes' : 'No' })));
     ws['!cols'] = [10, 22, 12, 22, 10, 8, 8].map(w => ({ wch: w }));
     XLSX.utils.book_append_sheet(wb, ws, 'Results');
     const auditWs = XLSX.utils.json_to_sheet(auditLog.map(e => ({ Timestamp: new Date(e.timestamp).toLocaleString(), Actor: e.actor, Action: e.action, Details: e.details })));
@@ -134,7 +164,7 @@ export default function Admin() {
     autoTable(doc, {
       startY: 46,
       head: [['Category', 'Winner', 'Department', 'Votes']],
-      body: (['king', 'queen', 'style', 'smart'] as Category[]).map(cat => {
+      body: (['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).map(cat => {
         const w = winners[cat];
         return [CATEGORY_META[cat].label, w?.name ?? '—', w?.department ?? '—', (voteCounts[w?.id ?? ''] ?? 0).toLocaleString()];
       }),
@@ -145,7 +175,7 @@ export default function Admin() {
     autoTable(doc, {
       startY: y + 4,
       head: [['Category', 'Name', 'Department', 'Year', 'Votes']],
-      body: allData.map(c => [CATEGORY_META[c.category].label, c.name, c.department, c.year, c.votes.toLocaleString()]),
+      body: allData.map(c => [CATEGORY_META[c.category].label, c.name, c.department ?? '—', c.year ?? '—', c.votes.toLocaleString()]),
       headStyles: { fillColor: [26, 26, 62] },
     });
     doc.save('MTU_King_Queen_2026.pdf');
@@ -162,9 +192,20 @@ export default function Admin() {
   // === Modal Handlers ===
   const openAddModal = () => { setForm(BLANK_FORM); setCandidateModal({ mode: 'add' }); };
   const openEditModal = (c: Candidate) => {
-    setForm({ name: c.name, nickname: c.nickname, department: c.department, year: c.year, category: c.category, bio: c.bio, talent: c.talent, photo: c.photo, isActive: c.isActive });
+    setForm({
+      name: c.name,
+      nickname: c.nickname ?? '',
+      department: c.department ?? DEPARTMENTS[0],
+      year: c.year ?? 'First year',
+      category: c.category,
+      bio: c.bio,
+      talent: c.talent ?? '',
+      photo: c.photo ?? c.photoUrl ?? '',
+      isActive: c.isActive,
+    });
     setCandidateModal({ mode: 'edit', id: c.id });
   };
+
   const saveCandidate = () => {
     if (!form.name.trim()) return;
     if (candidateModal?.mode === 'add') addCandidate(form, actorName);
@@ -174,16 +215,16 @@ export default function Admin() {
 
   const inputStyle = { background: inputBg, color: textPrimary, border: `1px solid ${border}` };
   const inputCls = 'w-full px-4 py-3 rounded-xl text-sm outline-none transition-all focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]';
-  
+
   return (
     <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
       
-      {/* Glassmorphic Sticky Header */}
+      {/* Header */}
       <div className="sticky top-16 z-30 border-b backdrop-blur-xl transition-all" style={{ background: darkMode ? 'rgba(13, 13, 26, 0.8)' : 'rgba(248, 245, 239, 0.8)', borderColor: border }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-2 rounded-lg" style={{ background: 'rgba(212,175,55,0.1)' }}>
-               <Shield size={24} style={{ color: '#D4AF37' }} />
+              <Shield size={24} style={{ color: '#D4AF37' }} />
             </div>
             <div>
               <h1 className="font-display font-bold text-xl tracking-tight" style={{ color: textPrimary }}>System Command</h1>
@@ -206,7 +247,7 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Integrated Navigation Pills */}
+        {/* Nav Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-2 overflow-x-auto pb-4 hide-scrollbar">
           {TABS.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className="px-5 py-2.5 text-sm font-semibold rounded-full whitespace-nowrap transition-all duration-300 flex items-center gap-2" style={{ background: activeTab === tab ? 'rgba(212,175,55,0.1)' : 'transparent', color: activeTab === tab ? '#D4AF37' : textMuted, border: activeTab === tab ? '1px solid rgba(212,175,55,0.3)' : '1px solid transparent' }}>
@@ -224,10 +265,9 @@ export default function Admin() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 relative z-10">
 
-        {/* ── OVERVIEW ── */}
+        {/* OVERVIEW */}
         {activeTab === 'Overview' && (
           <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
-            {/* Telemetry Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {[
                 { label: 'Total Ballots Cast', value: totalVotes.toLocaleString(), icon: <Trophy size={20} />, color: '#D4AF37' },
@@ -245,80 +285,61 @@ export default function Admin() {
                 </div>
               ))}
             </div>
+
             <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
-               <h3 className="font-semibold text-white">Election Event Type</h3>
-               <p className="text-sm text-slate-400">
-                  {election.type === 'major' 
-                 ? 'Major Welcome Mode ' 
-                 : 'The Whole Welcome Mode'}
-               </p>
-             </div>
-  
-           <div className="flex items-center gap-2">
-            <button
-             type="button"
-             onClick={() => setElectionType('fresher', 'Admin')}
-             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-              election.type !== 'major'
-               ? 'bg-amber-500 text-slate-950 font-bold'
-               : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-             }`}
-           >
-               The Whole Welcome
-              </button>
-             <button
-              type="button"
-              onClick={() => setElectionType('major', 'Admin')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-               election.type === 'major'
-                ? 'bg-amber-500 text-slate-950 font-bold'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-             }`}
-            >
-              Major Welcome
-            </button>
-          </div>
-        </div>
-            {/* Turnout Progress */}
-            <div className="rounded-3xl p-6 sm:p-8 backdrop-blur-md" style={{ background: cardBg, border: `1px solid ${border}` }}>
-              <div className="flex items-end justify-between mb-4">
-                <div>
-                  <h3 className="font-display font-bold text-xl" style={{ color: textPrimary }}>Electoral Turnout</h3>
-                  <p className="text-sm mt-1" style={{ color: textMuted }}>Real-time participation metrics</p>
-                </div>
-                <span className="font-display font-black text-3xl" style={{ color: '#D4AF37' }}>{turnout}%</span>
+                <h3 className="font-semibold text-white">Election Event Type</h3>
+                <p className="text-sm text-slate-400">
+                  {election.type === 'major' ? 'Major Welcome Mode' : 'The Whole Welcome Mode'}
+                </p>
               </div>
-              <div className="h-4 rounded-full overflow-hidden shadow-inner relative" style={{ background: darkMode ? 'rgba(0,0,0,0.4)' : '#F0EDE8' }}>
-                <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(turnout, 100)}%`, background: 'linear-gradient(90deg, #D4AF37, #E8C84A)', boxShadow: '0 0 20px rgba(212,175,55,0.5)' }} />
-              </div>
-              <div className="flex justify-between text-xs font-mono mt-3" style={{ color: textMuted }}>
-                <span>0%</span>
-                <span>{voteRecords.length.toLocaleString()} individual category votes recorded</span>
-                <span>100%</span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setElectionType('fresher', 'Admin')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    election.type !== 'major'
+                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  The Whole Welcome
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setElectionType('major', 'Admin')}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    election.type === 'major'
+                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Major Welcome
+                </button>
               </div>
             </div>
 
             {/* Projected Winners Grid */}
             <div>
               <div className="flex items-center gap-3 mb-6">
-                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent opacity-30"></div>
-                 <h3 className="font-mono text-sm uppercase tracking-[0.2em]" style={{ color: '#D4AF37' }}>Current Projections</h3>
-                 <div className="h-px flex-1 bg-gradient-to-r from-[#D4AF37] via-transparent to-transparent opacity-30"></div>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent opacity-30"></div>
+                <h3 className="font-mono text-sm uppercase tracking-[0.2em]" style={{ color: '#D4AF37' }}>Current Projections</h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-[#D4AF37] via-transparent to-transparent opacity-30"></div>
               </div>
-              
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {(['king', 'queen', 'style', 'smart'] as Category[]).map(cat => {
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {(['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).map(cat => {
                   const winner = winners[cat];
                   const meta = CATEGORY_META[cat];
                   if (!winner) return null;
                   return (
                     <div key={cat} className="group rounded-3xl overflow-hidden backdrop-blur-md transition-all hover:scale-[1.02]" style={{ background: cardBg, border: `1px solid ${meta.borderColor}` }}>
                       <div className="relative aspect-video overflow-hidden bg-gray-900">
-                        <img src={winner.photo} alt={winner.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80" />
+                        <img src={winner.photo ?? winner.photoUrl} alt={winner.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80" />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1D] via-[#0A0F1D]/50 to-transparent" />
                         <div className="absolute top-3 left-3 px-2 py-1 rounded backdrop-blur-md bg-black/40 border border-white/10 flex items-center gap-1.5">
-                           <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: meta.color }}>{meta.icon} Leader</span>
+                          <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: meta.color }}>{meta.icon} {meta.label} Leader</span>
                         </div>
                       </div>
                       <div className="p-5 relative -mt-6">
@@ -338,7 +359,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── BALLOT DATABASE ── */}
+        {/* BALLOTS */}
         {activeTab === 'Ballots' && (
           <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -347,7 +368,7 @@ export default function Admin() {
                 <p className="text-sm mt-2" style={{ color: textMuted }}>Cryptographically verified ballot entries. <span style={{ color: '#00C9A7' }}>{voteRecords.length} records secured.</span></p>
               </div>
             </div>
-            
+
             <div className="rounded-3xl border overflow-hidden backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left border-collapse">
@@ -359,7 +380,7 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: border }}>
-                    {ballotRows.length === 0 ? <tr><td colSpan={7} className="px-6 py-12 text-center text-sm" style={{ color: textMuted }}>Awaiting network activity. No ballots recorded.</td></tr> : ballotRows.map(row => (
+                    {ballotRows.length === 0 ? <tr><td colSpan={9} className="px-6 py-12 text-center text-sm" style={{ color: textMuted }}>Awaiting network activity. No ballots recorded.</td></tr> : ballotRows.map(row => (
                       <tr key={row.email} className="transition-colors hover:bg-white/5">
                         <td className="px-6 py-4 font-bold" style={{ color: textPrimary }}>{row.name}</td>
                         <td className="px-6 py-4 font-mono text-xs opacity-70" style={{ color: textPrimary }}>{row.email}</td>
@@ -384,7 +405,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── CANDIDATES ── */}
+        {/* CANDIDATES */}
         {activeTab === 'Candidates' && (
           <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -413,7 +434,7 @@ export default function Admin() {
                         <td className="px-6 py-4">
                           <div className="relative w-10 h-10">
                             <div className="absolute inset-0 rounded-full blur-sm opacity-40 transition-opacity group-hover:opacity-80" style={{ background: c.meta.color }}></div>
-                            <img src={c.photo} alt={c.name} className="relative w-full h-full rounded-full object-cover border border-white/20" />
+                            <img src={c.photo ?? c.photoUrl} alt={c.name} className="relative w-full h-full rounded-full object-cover border border-white/20" />
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -456,10 +477,9 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── ANALYTICS ── */}
+        {/* ANALYTICS */}
         {activeTab === 'Analytics' && (
           <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">
-            {/* Recharts Visualization */}
             <div className="rounded-3xl border p-6 sm:p-8 backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
               <div className="flex items-center justify-between mb-8">
                 <div>
@@ -487,15 +507,15 @@ export default function Admin() {
             </div>
 
             <div className="grid lg:grid-cols-2 gap-6">
-              {(['king', 'queen', 'style', 'smart'] as Category[]).map(cat => {
+              {(['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).map(cat => {
                 const meta = CATEGORY_META[cat];
                 const catCandidates = candidates.filter(c => c.category === cat && c.isActive).map(c => ({ ...c, votes: voteCounts[c.id] ?? 0 })).sort((a, b) => b.votes - a.votes);
                 const total = catCandidates.reduce((s, c) => s + c.votes, 0);
                 return (
                   <div key={cat} className="rounded-3xl border p-6 backdrop-blur-md" style={{ background: cardBg, borderColor: meta.borderColor }}>
                     <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-                       <span className="p-2 rounded-lg text-lg" style={{ background: `${meta.color}15`, color: meta.color }}>{meta.icon}</span>
-                       <h3 className="font-display font-bold text-xl" style={{ color: textPrimary }}>{meta.label} Race</h3>
+                      <span className="p-2 rounded-lg text-lg" style={{ background: `${meta.color}15`, color: meta.color }}>{meta.icon}</span>
+                      <h3 className="font-display font-bold text-xl" style={{ color: textPrimary }}>{meta.label} Race</h3>
                     </div>
                     <div className="space-y-5">
                       {catCandidates.map((c, i) => {
@@ -525,7 +545,7 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── AUDIT LOG ── */}
+        {/* AUDIT */}
         {activeTab === 'Audit' && (
           <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -537,24 +557,22 @@ export default function Admin() {
                 <FileText size={16} style={{ color: '#D4AF37' }} /> Download .CSV
               </button>
             </div>
-            
+
             <div className="rounded-3xl border overflow-hidden backdrop-blur-md p-2" style={{ background: cardBg, borderColor: border }}>
               {auditLog.length === 0 ? (
                 <div className="py-20 text-center"><p className="text-sm" style={{ color: textMuted }}>System logs are currently empty.</p></div>
               ) : (
                 <div className="relative pl-6 sm:pl-10 pr-4 py-6 space-y-8">
-                  {/* Timeline connecting line */}
                   <div className="absolute top-8 bottom-8 left-[39px] sm:left-[55px] w-px" style={{ background: border }}></div>
-                  
                   {auditLog.map(e => {
-                     const isCritical = e.action.includes('CLOSED') || e.action.includes('RESET');
-                     const isSuccess = e.action.includes('OPENED') || e.action.includes('PUBLISHED');
-                     const logColor = isSuccess ? '#00C9A7' : isCritical ? '#FF7AAE' : '#D4AF37';
+                    const isCritical = e.action.includes('CLOSED') || e.action.includes('RESET');
+                    const isSuccess = e.action.includes('OPENED') || e.action.includes('PUBLISHED');
+                    const logColor = isSuccess ? '#00C9A7' : isCritical ? '#FF7AAE' : '#D4AF37';
 
-                     return (
+                    return (
                       <div key={e.id} className="relative flex items-start gap-6 group">
                         <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-lg transition-transform group-hover:scale-110" style={{ background: 'rgba(10,15,29,1)', border: `2px solid ${logColor}` }}>
-                           <div className="w-2.5 h-2.5 rounded-full" style={{ background: logColor, boxShadow: `0 0 10px ${logColor}` }} />
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ background: logColor, boxShadow: `0 0 10px ${logColor}` }} />
                         </div>
                         <div className="flex-1 min-w-0 bg-black/10 rounded-2xl p-4 border border-white/5 transition-colors group-hover:bg-white/5">
                           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-2">
@@ -577,21 +595,20 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── CONTROLS ── */}
+        {/* CONTROLS */}
         {activeTab === 'Controls' && (
           <div className="grid lg:grid-cols-2 gap-6 animate-[fadeIn_0.3s_ease-out]">
-            {/* Network Lifecycle */}
             <div className="rounded-3xl border p-8 backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
               <h3 className="font-display font-bold text-2xl mb-2" style={{ color: textPrimary }}>Network Lifecycle</h3>
               <p className="text-sm mb-8" style={{ color: textMuted }}>
                 Current state: <span className="font-mono font-bold px-2 py-0.5 rounded ml-1" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>{election.status.toUpperCase()}</span>
               </p>
-              
+
               <div className="relative flex justify-between items-center mb-10">
                 <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}></div>
                 {(['scheduled', 'open', 'closed', 'published'] as const).map((s, i) => {
                   const isActive = election.status === s;
-                  const isPast = ['scheduled','open','closed','published'].indexOf(election.status) > i;
+                  const isPast = ['scheduled', 'open', 'closed', 'published'].indexOf(election.status) > i;
                   return (
                     <div key={s} className="relative z-10 flex flex-col items-center gap-3">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-mono border-2 transition-all" style={{ background: isActive ? 'rgba(212,175,55,0.2)' : isPast ? 'rgba(0,201,167,0.1)' : 'rgba(10,15,29,1)', borderColor: isActive ? '#D4AF37' : isPast ? '#00C9A7' : border, color: isActive ? '#D4AF37' : textMuted, boxShadow: isActive ? '0 0 20px rgba(212,175,55,0.3)' : 'none' }}>
@@ -611,7 +628,7 @@ export default function Admin() {
                   <XCircle size={16} /> Close Network
                 </button>
               </div>
-              
+
               {(election.status === 'closed' || election.status === 'published') && (
                 <button onClick={() => setConfirmAction({ label: 'Decrypt and publish final results to public channels?', action: () => publishResults(actorName) })} className="w-full mt-4 py-4 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] flex justify-center items-center gap-2 shadow-[0_0_20px_rgba(212,175,55,0.2)]" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
                   <Trophy size={16} /> Publish Final Results
@@ -620,7 +637,6 @@ export default function Admin() {
             </div>
 
             <div className="space-y-6">
-              {/* Danger Zone */}
               <div className="rounded-3xl p-8 backdrop-blur-md overflow-hidden relative" style={{ background: 'rgba(255, 122, 174, 0.02)', border: '1px solid rgba(255,122,174,0.3)' }}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF7AAE] opacity-5 blur-3xl rounded-full pointer-events-none"></div>
                 <div className="flex items-center gap-3 mb-4">
@@ -633,7 +649,6 @@ export default function Admin() {
                 </button>
               </div>
 
-              {/* Data Extraction */}
               <div className="rounded-3xl border p-8 backdrop-blur-md" style={{ background: cardBg, borderColor: border }}>
                 <h3 className="font-display font-bold text-2xl mb-6" style={{ color: textPrimary }}>Data Extraction</h3>
                 <div className="flex flex-col gap-3">
@@ -656,7 +671,7 @@ export default function Admin() {
         )}
       </div>
 
-      {/* ── CINEMATIC CONFIRM DIALOG ── */}
+      {/* CONFIRM MODAL */}
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300" style={{ background: 'rgba(10,15,29,0.85)', backdropFilter: 'blur(12px)' }}>
           <div className="rounded-3xl p-8 max-w-sm w-full text-center border relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]" style={{ background: cardBg, borderColor: 'rgba(212,175,55,0.4)' }}>
@@ -672,22 +687,22 @@ export default function Admin() {
         </div>
       )}
 
-      {/* ── HIGH-END CANDIDATE MODAL ── */}
+      {/* CANDIDATE REGISTRATION MODAL */}
       {candidateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ background: 'rgba(10,15,29,0.85)', backdropFilter: 'blur(12px)' }}>
           <div className="relative rounded-3xl p-8 w-full max-w-2xl border my-8 shadow-2xl" style={{ background: cardBg, borderColor: border }}>
             <button className="absolute top-6 right-6 p-2 rounded-full transition-colors hover:bg-white/5" onClick={() => setCandidateModal(null)} style={{ color: textMuted }}><X size={20} /></button>
-            
+
             <div className="flex items-center gap-4 mb-8 border-b pb-6" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-               <div className="p-3 rounded-xl" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>
-                  {candidateModal.mode === 'add' ? <Plus size={24} /> : <Pencil size={24} />}
-               </div>
-               <div>
-                  <h3 className="font-display font-bold text-2xl" style={{ color: textPrimary }}>
-                    {candidateModal.mode === 'add' ? 'Register Candidate' : 'Modify Dossier'}
-                  </h3>
-                  <p className="text-xs font-mono mt-1" style={{ color: textMuted }}>System DB Entry</p>
-               </div>
+              <div className="p-3 rounded-xl" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>
+                {candidateModal.mode === 'add' ? <Plus size={24} /> : <Pencil size={24} />}
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-2xl" style={{ color: textPrimary }}>
+                  {candidateModal.mode === 'add' ? 'Register Candidate' : 'Modify Dossier'}
+                </h3>
+                <p className="text-xs font-mono mt-1" style={{ color: textMuted }}>System DB Entry</p>
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-6">
@@ -697,42 +712,38 @@ export default function Admin() {
               <Field label="Alias / Nickname">
                 <input value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} className={inputCls} style={inputStyle} placeholder="Display moniker" />
               </Field>
+
               <Field label="Electoral Category">
                 <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as Category }))} className={inputCls} style={inputStyle}>
                   <option value="king">King (Male Lead)</option>
                   <option value="queen">Queen (Female Lead)</option>
                   <option value="style">Best Style (Female)</option>
                   <option value="smart">Smartest (Male)</option>
+                  <option value="popular_man">Popular Man (Male)</option>
+                  <option value="popular_woman">Popular Woman (Female)</option>
                 </select>
               </Field>
+
               <Field label="Academic Level">
-                <input value="First year"
-                readOnly
-                className={inputCls}
-                style={inputStyle}
-                />
+                <input value="First year" readOnly className={inputCls} style={inputStyle} />
               </Field>
+
               <div className="sm:col-span-2">
-              <Field label="Academic Department">
-            <select 
-            value={form.department} 
-            onChange={e => setForm(f => ({ ...f, department: e.target.value }))} 
-            className={inputCls} 
-            style={inputStyle}
-            >
-          {DEPARTMENTS.map(dept => (
-        <option key={dept} value={dept}>
-          {dept}
-        </option>
-      ))}
-       </select>
-              </Field>
+                <Field label="Academic Department">
+                  <select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} className={inputCls} style={inputStyle}>
+                    {DEPARTMENTS.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </Field>
               </div>
+
               <div className="sm:col-span-2">
-                 <Field label="Core Strength">
+                <Field label="Core Strength">
                   <input value={form.talent} onChange={e => setForm(f => ({ ...f, talent: e.target.value }))} className={inputCls} style={inputStyle} placeholder="e.g. Public Speaking" />
                 </Field>
               </div>
+
               <div className="sm:col-span-2">
                 <Field label="Portrait Reference URL">
                   <input value={form.photo} onChange={e => setForm(f => ({ ...f, photo: e.target.value }))} className={inputCls} style={inputStyle} placeholder="Secure image link (https://...)" />
@@ -743,13 +754,14 @@ export default function Admin() {
                   </div>
                 )}
               </div>
+
               <div className="sm:col-span-2">
                 <Field label="Candidate Biography">
                   <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} className={`${inputCls} resize-none`} style={{ ...inputStyle, height: 100 }} placeholder="Background details..." />
                 </Field>
               </div>
             </div>
-            
+
             <div className="flex gap-4 mt-8 pt-6 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
               <button onClick={() => setCandidateModal(null)} className="flex-1 py-4 rounded-xl text-sm font-bold border transition-colors hover:bg-white/5" style={{ borderColor: border, color: textMuted }}>Discard</button>
               <button onClick={saveCandidate} className="flex-1 py-4 rounded-xl text-sm font-bold transition-transform hover:scale-105 shadow-lg" style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0A0F1D' }}>
