@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Trophy, Lock } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { CATEGORY_META, type Category } from '../types';
+import {INITIAL_VOTES} from '../data';
 
 const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart'];
 
@@ -68,7 +69,7 @@ export default function Results() {
   const meta = CATEGORY_META[activeCategory];
   const catCandidates = candidates
     .filter(c => c.category === activeCategory && c.isActive)
-    .map(c => ({ ...c, votes: voteCounts[c.id] ?? 0 }))
+    .map(c => ({ ...c, votes: voteCounts[c.id] ?? INITIAL_VOTES[c.id] ?? 0 }))
     .sort((a, b) => b.votes - a.votes);
   const totalCatVotes = catCandidates.reduce((s, c) => s + c.votes, 0);
   const isRevealed = !!revealed[activeCategory];

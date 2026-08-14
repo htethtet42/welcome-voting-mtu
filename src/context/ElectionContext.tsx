@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { Category, ElectionState, AuditEntry, Candidate, VoteRecord } from '../types';
 import { INITIAL_ELECTION, CANDIDATES as SEED_CANDIDATES } from '../data';
-import { useAuth } from './AuthContext';
 
 interface ElectionContextType {
   election: ElectionState;
@@ -45,8 +44,6 @@ function makeAuditEntry(actor: string, action: string, details: string): AuditEn
 }
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
-  const { isAdmin } = useAuth();
-
   const [election, setElection] = useState<ElectionState>(() => {
     const stored = load<ElectionState | null>('mtu_election', null);
     if (!stored) return INITIAL_ELECTION;
@@ -141,7 +138,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       if (!response.ok) throw new Error('Failed to fetch ballots');
       
       const data = await response.json();
-      const formattedData: VoteRecord[] = data.map((record: any) => ({
+      const formattedData: VoteRecord[] = (data || []).map((record: any) => ({
         ...record,
         createdAt: new Date(record.createdAt)
       }));
@@ -159,11 +156,12 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     }
   }, [API_URL]);
 
+  // Fetch vote ledger globally for all clients & poll every 5s
   useEffect(() => {
-    if (isAdmin) {
-      fetchGlobalLedger();
-    }
-  }, [isAdmin, fetchGlobalLedger]);
+    fetchGlobalLedger();
+    const interval = setInterval(fetchGlobalLedger, 5000);
+    return () => clearInterval(interval);
+  }, [fetchGlobalLedger]);
 
   const castVote = useCallback(async (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => {
     if (election.status !== 'open') return 'closed';
