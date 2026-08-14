@@ -5,13 +5,14 @@ export type UserRole = 'voter' | 'admin';
 export interface Candidate {
   id: string;
   name: string;
-  nickname: string;
-  department: string;
-  year: string;
+  nickname?: string;
+  department?: string;
+  year?: string;
   category: Category;
-  photo: string;
+  photo?: string;
+  photoUrl?: string; // Kept for backwards compatibility
   bio: string;
-  talent: string;
+  talent?: string;
   isActive: boolean;
 }
 
@@ -26,7 +27,7 @@ export interface EligibleVoter {
 
 export interface AuthUser {
   id: string;
-  studentId: string;
+  studentId?: string;
   email: string;
   name: string;
   role: UserRole;
@@ -52,9 +53,10 @@ export interface VoteRecord {
 }
 
 export interface ElectionState {
-  id: string;
-  name: string;
+  id?: string;
+  name?: string;
   status: ElectionStatus;
+  type?: 'fresher' | 'major'; // Added to support fresher/major election switching
   opensAt: Date | null;
   closesAt: Date | null;
   publishedAt: Date | null;
@@ -116,7 +118,7 @@ export const CATEGORY_META: Record<Category, CategoryMeta> = {
     icon: '🤵🏻',
     description: 'Most popular — boys nominees only',
   },
-   popular_woman: {
+  popular_woman: {
     label: 'Popular',
     color: '#A78BFA',
     bgColor: 'rgba(147,51,234,0.12)',
