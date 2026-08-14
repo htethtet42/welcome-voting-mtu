@@ -90,7 +90,7 @@ export default function Landing() {
           <img 
             src="/mtu.webp" 
             alt="MTU Campus"
-            className="w-full h-full object-cover filter blur-[1.5px] scale-105 opacity-60"
+            className="w-full h-full object-cover filter blur-[1.5px] scale-105 opacity-50"
           />
           <div className="absolute inset-0 bg-[#0B0E14]/50 mix-blend-multiply" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-transparent to-[#0B0E14]/20" />
