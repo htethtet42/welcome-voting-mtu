@@ -237,7 +237,7 @@ func AuditHandler(db *sql.DB) http.HandlerFunc {
 func main() {
  dsn := os.Getenv("DATABASE_URL")
  if dsn == "" {
-  dsn = "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
+  dsn = "root:starfruit@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
  }
 
  db, err := sql.Open("mysql", dsn)
@@ -263,7 +263,7 @@ func main() {
 
  port := os.Getenv("PORT")
  if port == "" {
-  port = "8081"
+  port = "8080"
  }
 
  fmt.Printf("Server running on port %s...\n", port)

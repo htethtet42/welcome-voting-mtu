@@ -19,6 +19,7 @@ interface ElectionContextType {
   openElection: (actorName: string, autoCloseMinutes?: number) => void;
   closeElection: (actorName: string) => void;
   publishResults: (actorName: string) => void;
+  setElectionType: (type: 'fresher' | 'major', actorName: string) => void;
   addCandidate: (candidate: Omit<Candidate, 'id'>, actorName: string) => void;
   updateCandidate: (id: string, updates: Partial<Candidate>, actorName: string) => void;
   toggleCandidateActive: (id: string, actorName: string) => void;
@@ -64,6 +65,8 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     load<Candidate[]>('mtu_candidates_v2', SEED_CANDIDATES).map(candidate => {
       if (candidate.id.startsWith('smart-')) return { ...candidate, category: 'smart' };
       if (candidate.id.startsWith('style-')) return { ...candidate, category: 'style' };
+      if (candidate.id.startsWith('popular_man-')) return { ...candidate, category: 'popular_man' };
+      if (candidate.id.startsWith('popular_woman-')) return { ...candidate, category: 'popular_woman' };
       return candidate;
     })
   );
@@ -79,7 +82,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
 
-  const API_URL = 'https://mtuvotingbackend2.loca.lt/api';
+  const API_URL = 'http://localhost:8080/api';
 
   const addAudit = useCallback((actor: string, action: string, details: string) => {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
@@ -192,7 +195,14 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   }, [election.status, candidates, addAudit]);
 
   // --- ADMIN FUNCTIONS ---
-
+ const setElectionType = useCallback((type: 'fresher' | 'major', actorName: string) => {
+    setElection(prev => {
+      const updated = { ...prev, type };
+      localStorage.setItem('mtu_election', JSON.stringify(updated));
+      return updated;
+    });
+    addAudit(actorName || 'Admin', 'ELECTION_UPDATED', `Changed election type to ${type}`);
+  }, [addAudit]);
   const openElection = useCallback((actorName: string, autoCloseMinutes?: number) => {
     setElection(e => {
       const now = new Date();
@@ -249,7 +259,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
 
-  const winners = (['king', 'queen', 'style', 'smart'] as Category[]).reduce((result, category) => {
+  const winners = (['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).reduce((result, category) => {
     result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
     return result;
   }, {} as Record<Category, Candidate | null>);
@@ -260,6 +270,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
       addCandidate, updateCandidate, toggleCandidateActive,
       resetVotes, toggleDarkMode,
+      setElectionType,
       totalVotes, winners,
     }}>
       {children}

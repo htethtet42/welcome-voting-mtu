@@ -1,4 +1,4 @@
-export type Category = 'king' | 'queen' | 'style' | 'smart';
+export type Category = 'king' | 'queen' | 'style' | 'smart' | 'popular_man' | 'popular_woman';
 export type ElectionStatus = 'scheduled' | 'open' | 'closed' | 'published';
 export type UserRole = 'voter' | 'admin';
 
@@ -106,5 +106,23 @@ export const CATEGORY_META: Record<Category, CategoryMeta> = {
     gender: 'male',
     icon: '🎓',
     description: 'Most academically outstanding — boys nominees only',
+  },
+  popular_man: {
+    label: 'Popular',
+    color: '#2EDBB8',
+    bgColor: 'rgba(0,201,167,0.12)',
+    borderColor: 'rgba(0,201,167,0.3)',
+    gender: 'male',
+    icon: '🤵🏻',
+    description: 'Most popular — boys nominees only',
+  },
+   popular_woman: {
+    label: 'Popular',
+    color: '#A78BFA',
+    bgColor: 'rgba(147,51,234,0.12)',
+    borderColor: 'rgba(147,51,234,0.3)',
+    gender: 'female',
+    icon: '🌟',
+    description: 'Most popular — girls nominees only',
   },
 };
