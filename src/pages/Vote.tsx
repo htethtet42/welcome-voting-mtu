@@ -52,7 +52,7 @@ export default function Vote() {
   const votingOpen = election.status === 'open';
   const isMajorWelcome = election?.type === 'major';
   const visibleCategories = CATEGORIES.filter(category => {
-  const catId = category;
+  const catId = typeof category === 'string' ? category : (category as any).id;
   if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
     return false; 
   }
@@ -154,19 +154,17 @@ export default function Vote() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
         {/* Voted Categories Dashboard */}
-        <div className="flex flex-wrap gap-3 mb-8 justify-center">
+        <div className="flex flex-wrap gap-2 p-1.5">
           {visibleCategories.map(cat => {
             const m = CATEGORY_META[cat];
-            const voted = votedCategories[cat];
+            const isActive = activeCategory === cat;
             return (
-              <div key={cat} className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border backdrop-blur-sm transition-all" style={{ background: voted ? 'rgba(0,201,167,0.1)' : cardBg, borderColor: voted ? 'rgba(0,201,167,0.4)' : border, color: voted ? '#00C9A7' : textMuted }}>
-                {voted ? <CheckCircle2 size={16} className="animate-pulse" /> : <span className="opacity-50">{m.icon}</span>}
-                <span className="font-medium">{m.label}</span>
-                {voted && <span className="text-[10px] uppercase tracking-wider ml-1 opacity-70">Sealed</span>}
-              </div>
-            );
-          })}
-        </div>
+              <button key={cat} onClick={() => setActiveCategory(cat)}>
+                {m.label}
+              </button>
+    );
+  })}
+</div>
 
         {/* Sleek Segmented Category Tabs */}
         <div className="flex flex-wrap sm:flex-nowrap gap-2 p-1.5 rounded-2xl mb-10 backdrop-blur-xl shadow-sm" style={{ background: cardBg, border: `1px solid ${border}` }}>

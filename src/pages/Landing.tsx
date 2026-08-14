@@ -3,10 +3,9 @@ import { Link } from 'react-router-dom';
 import { Crown, Users, Trophy, ArrowRight, Clock } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
-import { CANDIDATES } from '../data';
 import { CATEGORY_META, type Category, type ElectionStatus } from '../types';
 
-const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman',];
+const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'];
 
 const CATEGORY_PROFILE_IMAGES: Record<Category, string> = {
   king: '/king.png',
@@ -29,15 +28,20 @@ const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
 export default function Landing() {
   const { darkMode, election, candidates, voteRecords } = useElection();
   const isMajorWelcome = election?.type === 'major';
+
+  // Filter out popular categories when Major Welcome mode is active
   const visibleCategories = CATEGORIES.filter(cat => {
-  const catId = typeof cat === 'string' ? cat : (cat as any).id;
-  if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
-    return false;
-  }
-  return true;
+    const catId = typeof cat === 'string' ? cat : (cat as any).id;
+    if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
+      return false;
+    }
+    return true;
   });
+
   const activeNomineesCount = candidates.filter(
-  c => c.isActive && visibleCategories.includes(c.category as any)).length;
+    c => c.isActive && visibleCategories.includes(c.category as any)
+  ).length;
+
   const { isAuthenticated } = useAuth();
 
   // Dynamic countdown timer state
@@ -70,7 +74,7 @@ export default function Landing() {
 
   const formatNum = (num: number) => String(num).padStart(2, '0');
 
-  // Updated Background Colors to Match Dark Mode Aesthetics
+  // Theme Aesthetics
   const bg = darkMode ? '#0B0E14' : '#e7dbc5';
   const cardBg = darkMode ? 'rgba(18, 23, 34, 0.75)' : 'rgba(255, 255, 255, 0.85)';
   const textPrimary = darkMode ? '#F8F9FA' : '#0D1117';
@@ -79,13 +83,11 @@ export default function Landing() {
   const sm = STATUS_META[election.status];
 
   return (
-    
     <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
 
       {/* Hero Section */}
       <section className="relative overflow-hidden flex flex-col items-center justify-center text-center px-4 py-24 sm:py-32 min-h-[90vh]">
-        {/* Animated Background Mesh Gradient */}
-        {/* Background Campus Image with Blur & Overlay */}
+        {/* Background Campus Image */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
           <img 
             src="/mtu.webp" 
@@ -105,14 +107,14 @@ export default function Landing() {
           <img src="/MTU2.png" alt="MTU Logo" className="relative w-24 h-24 object-contain" style={{ mixBlendMode: darkMode ? 'screen' : 'multiply' }} />
         </div>
 
-        {/* Consolidated Status Pill */}
+        {/* Status Pill */}
         <div className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-mono mb-8 border backdrop-blur-md shadow-sm z-10 transition-all hover:scale-105"
           style={{ background: sm.bg, borderColor: sm.border, color: sm.color }}>
           <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_currentColor] ${election.status === 'open' ? 'animate-ping' : ''}`} style={{ background: sm.dot }} />
           {sm.label} · Session 2026
         </div>
 
-        {/* High-Impact Typography */}
+        {/* Typography */}
         <h1 className="font-display font-black leading-[1.1] mb-6 z-10 tracking-tight" style={{ fontSize: 'clamp(3rem, 8vw, 6rem)' }}>
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#D4AF37] via-[#F4D068] to-[#D4AF37] animate-gradient-x">
             MTU Fresher Welcome
@@ -121,11 +123,11 @@ export default function Landing() {
           <span className="text-slate-950 dark:text-[#F8F9FA]">Voting Awards 2026</span>
         </h1>
 
-        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-semilbold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" >
-          The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium text-">Every vote shapes the legacy.</span>
+        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-semibold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+          The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium">Every vote shapes the legacy.</span>
         </p>
 
-        {/* --- DEADLINE PILL CONTAINER --- */}
+        {/* Deadline Container */}
         <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-md backdrop-blur-md max-w-fit mx-auto mb-10 z-10">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
             <Clock className="w-4 h-4 text-amber-500" />
@@ -141,7 +143,7 @@ export default function Landing() {
 
           <div className="h-3.5 w-px bg-slate-300 dark:bg-slate-700" />
 
-          {/* Polls Status Badge */}
+          {/* Badge */}
           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
             election.status === 'open'
               ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
@@ -169,12 +171,12 @@ export default function Landing() {
           </Link>
         </div>
 
-        {/* Glassmorphic Stats Row */}
+        {/* Glassmorphic Stats */}
         <div className="flex flex-wrap justify-center gap-4 sm:gap-8 z-10 w-full max-w-4xl px-4">
           {[
             { label: 'Verified Votes', value: voteRecords.length.toLocaleString(), icon: <Trophy size={18} /> },
             { label: 'Active Nominees', value: String(activeNomineesCount), icon: <Users size={18} /> },
-            { label: 'Prestigious Titles', value: String(isMajorWelcome ? 4:6), icon: <Crown size={18} /> },
+            { label: 'Prestigious Titles', value: String(visibleCategories.length), icon: <Crown size={18} /> },
           ].map((s) => (
             <div key={s.label} className="flex-1 min-w-[140px] flex flex-col items-center p-6 rounded-2xl backdrop-blur-lg border transition-transform hover:-translate-y-1" style={{ background: cardBg, borderColor: border }}>
               <span className="p-3 rounded-full mb-3" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>{s.icon}</span>
@@ -185,7 +187,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Categories */}
+      {/* Categories Grid */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-24">
         <div className="text-center mb-16 flex flex-col items-center">
           <div className="h-px w-24 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent mb-6"></div>
@@ -194,13 +196,7 @@ export default function Landing() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-          {CATEGORIES.filter(cat => {
-           const catId = typeof cat === 'string' ? cat : (cat as any).id;
-           if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
-            return false;
-           }
-           return true;
-          }).map(cat => {
+          {visibleCategories.map(cat => {
             const meta = CATEGORY_META[cat];
             const count = candidates.filter(c => c.category === cat && c.isActive).length;
             const profileImage = CATEGORY_PROFILE_IMAGES[cat];
@@ -240,7 +236,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Candidates Section with Matching Background */}
+      {/* Official Contenders Section */}
       <section className="py-24 border-t relative overflow-hidden" style={{ background: darkMode ? '#0E131F' : '#FFFFFF', borderColor: border }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-end mb-12">
@@ -254,23 +250,26 @@ export default function Landing() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
-            {CANDIDATES.slice(0, 10).map(c => {
-              const meta = CATEGORY_META[c.category];
-              return (
-                <Link key={c.id} to={election.status === 'open' ? `/vote?category=${c.category}` : '/results'} className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-gray-900 shadow-lg">
-                  <img src={c.photo} alt={c.name} className="w-full h-full object-cover transition-all duration-700 grayscale-[0.8] opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110" />
-                  
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-[#0B0E14]/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
-                  
-                  <div className="absolute bottom-0 left-0 right-0 p-4 transform transition-transform duration-300 translate-y-2 group-hover:translate-y-0">
-                    <span className="inline-block px-2 py-1 rounded backdrop-blur-md bg-white/10 border border-white/20 font-mono text-[10px] uppercase tracking-wider mb-2" style={{ color: meta.color }}>
-                      {meta.label}
-                    </span>
-                    <p className="font-display font-bold text-lg text-white leading-tight">{c.name}</p>
-                  </div>
-                </Link>
-              );
-            })}
+            {candidates
+              .filter(c => visibleCategories.includes(c.category as any))
+              .slice(0, 10)
+              .map(c => {
+                const meta = CATEGORY_META[c.category];
+                return (
+                  <Link key={c.id} to={election.status === 'open' ? `/vote?category=${c.category}` : '/results'} className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-gray-900 shadow-lg">
+                    <img src={c.photo} alt={c.name} className="w-full h-full object-cover transition-all duration-700 grayscale-[0.8] opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110" />
+                    
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-[#0B0E14]/40 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-500" />
+                    
+                    <div className="absolute bottom-0 left-0 right-0 p-4 transform transition-transform duration-300 translate-y-2 group-hover:translate-y-0">
+                      <span className="inline-block px-2 py-1 rounded backdrop-blur-md bg-white/10 border border-white/20 font-mono text-[10px] uppercase tracking-wider mb-2" style={{ color: meta.color }}>
+                        {meta.label}
+                      </span>
+                      <p className="font-display font-bold text-lg text-white leading-tight">{c.name}</p>
+                    </div>
+                  </Link>
+                );
+              })}
           </div>
         </div>
       </section>
