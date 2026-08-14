@@ -49,6 +49,7 @@ export default function Admin() {
     darkMode, totalVotes, winners,
     openElection, closeElection, publishResults,
     addCandidate, updateCandidate, toggleCandidateActive,
+    setElectionType,
     resetVotes,
   } = useElection();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -244,7 +245,41 @@ export default function Admin() {
                 </div>
               ))}
             </div>
-
+            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+               <h3 className="font-semibold text-white">Election Event Type</h3>
+               <p className="text-sm text-slate-400">
+                  {election.type === 'major' 
+                 ? 'Major Welcome Mode ' 
+                 : 'The Whole Welcome Mode'}
+               </p>
+             </div>
+  
+           <div className="flex items-center gap-2">
+            <button
+             type="button"
+             onClick={() => setElectionType('fresher', 'Admin')}
+             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              election.type !== 'major'
+               ? 'bg-amber-500 text-slate-950 font-bold'
+               : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+             }`}
+           >
+               The Whole Welcome
+              </button>
+             <button
+              type="button"
+              onClick={() => setElectionType('major', 'Admin')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+               election.type === 'major'
+                ? 'bg-amber-500 text-slate-950 font-bold'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+             }`}
+            >
+              Major Welcome
+            </button>
+          </div>
+        </div>
             {/* Turnout Progress */}
             <div className="rounded-3xl p-6 sm:p-8 backdrop-blur-md" style={{ background: cardBg, border: `1px solid ${border}` }}>
               <div className="flex items-end justify-between mb-4">
@@ -318,7 +353,7 @@ export default function Admin() {
                 <table className="w-full text-sm text-left border-collapse">
                   <thead>
                     <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
-                      {['Identity', 'Email Address', 'King', 'Queen', 'Style', 'Smartest', 'Timestamp'].map((header, i) => (
+                      {['Identity', 'Email Address', 'King', 'Queen', 'Style', 'Smartest', 'Popular-M', 'Popular-W', 'Timestamp'].map((header, i) => (
                         <th key={header} className={`px-6 py-4 font-mono text-[10px] uppercase tracking-widest ${i === 0 ? 'rounded-tl-2xl' : ''}`} style={{ color: textMuted }}>{header}</th>
                       ))}
                     </tr>
@@ -328,7 +363,7 @@ export default function Admin() {
                       <tr key={row.email} className="transition-colors hover:bg-white/5">
                         <td className="px-6 py-4 font-bold" style={{ color: textPrimary }}>{row.name}</td>
                         <td className="px-6 py-4 font-mono text-xs opacity-70" style={{ color: textPrimary }}>{row.email}</td>
-                        {(['king', 'queen', 'style', 'smart'] as Category[]).map(category => (
+                        {(['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).map(category => (
                           <td key={category} className="px-6 py-4">
                             {row.votes[category] ? (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium" style={{ background: `${CATEGORY_META[category].color}15`, color: CATEGORY_META[category].color }}>

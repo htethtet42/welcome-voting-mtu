@@ -6,13 +6,15 @@ import { useAuth } from '../context/AuthContext';
 import { CANDIDATES } from '../data';
 import { CATEGORY_META, type Category, type ElectionStatus } from '../types';
 
-const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart'];
+const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman',];
 
 const CATEGORY_PROFILE_IMAGES: Record<Category, string> = {
   king: '/king.png',
   queen: '/queen.jpg',
   style: '/style.jpg',
   smart: '/smart.jpg',
+  popular_man: '/popular(m).jpg',
+  popular_woman: '/popular(w).jpg',
 };
 
 const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: string; border: string; dot: string }> = {
@@ -26,6 +28,16 @@ const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Landing() {
   const { darkMode, election, candidates, voteRecords } = useElection();
+  const isMajorWelcome = election?.type === 'major';
+  const visibleCategories = CATEGORIES.filter(cat => {
+  const catId = typeof cat === 'string' ? cat : (cat as any).id;
+  if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
+    return false;
+  }
+  return true;
+  });
+  const activeNomineesCount = candidates.filter(
+  c => c.isActive && visibleCategories.includes(c.category as any)).length;
   const { isAuthenticated } = useAuth();
 
   // Dynamic countdown timer state
@@ -67,19 +79,22 @@ export default function Landing() {
   const sm = STATUS_META[election.status];
 
   return (
+    
     <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
 
       {/* Hero Section */}
       <section className="relative overflow-hidden flex flex-col items-center justify-center text-center px-4 py-24 sm:py-32 min-h-[90vh]">
         {/* Animated Background Mesh Gradient */}
-        <div 
-          className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
-          style={{
-            background: darkMode 
-              ? 'radial-gradient(circle at 50% 0%, rgba(212,175,55,0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(0,201,167,0.05) 0%, transparent 50%)' 
-              : 'radial-gradient(circle at 50% 0%, rgba(212,175,55,0.2) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(0,201,167,0.08) 0%, transparent 50%)'
-          }}
-        />
+        {/* Background Campus Image with Blur & Overlay */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <img 
+            src="/mtu.webp" 
+            alt="MTU Campus"
+            className="w-full h-full object-cover filter blur-[1.5px] scale-105 opacity-50"
+          />
+          <div className="absolute inset-0 bg-[#0B0E14]/50 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-transparent to-[#0B0E14]/20" />
+        </div>
         
         {/* Subtle Grid */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#D4AF37 1px, transparent 1px), linear-gradient(90deg, #D4AF37 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
@@ -103,11 +118,11 @@ export default function Landing() {
             MTU Fresher Welcome
           </span>
           <br />
-          <span style={{ color: textPrimary }}>Voting Awards 2026</span>
+          <span className="text-slate-950 dark:text-[#F8F9FA]">Voting Awards 2026</span>
         </h1>
 
-        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-light" style={{ color: textMuted }}>
-          The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium text-[#D4AF37]">Every vote shapes the legacy.</span>
+        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-semilbold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" >
+          The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium text-">Every vote shapes the legacy.</span>
         </p>
 
         {/* --- DEADLINE PILL CONTAINER --- */}
@@ -158,8 +173,8 @@ export default function Landing() {
         <div className="flex flex-wrap justify-center gap-4 sm:gap-8 z-10 w-full max-w-4xl px-4">
           {[
             { label: 'Verified Votes', value: voteRecords.length.toLocaleString(), icon: <Trophy size={18} /> },
-            { label: 'Active Nominees', value: String(candidates.filter(c => c.isActive).length), icon: <Users size={18} /> },
-            { label: 'Prestigious Titles', value: '4', icon: <Crown size={18} /> },
+            { label: 'Active Nominees', value: String(activeNomineesCount), icon: <Users size={18} /> },
+            { label: 'Prestigious Titles', value: String(isMajorWelcome ? 4:6), icon: <Crown size={18} /> },
           ].map((s) => (
             <div key={s.label} className="flex-1 min-w-[140px] flex flex-col items-center p-6 rounded-2xl backdrop-blur-lg border transition-transform hover:-translate-y-1" style={{ background: cardBg, borderColor: border }}>
               <span className="p-3 rounded-full mb-3" style={{ background: 'rgba(212,175,55,0.1)', color: '#D4AF37' }}>{s.icon}</span>
@@ -179,7 +194,13 @@ export default function Landing() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-          {CATEGORIES.map(cat => {
+          {CATEGORIES.filter(cat => {
+           const catId = typeof cat === 'string' ? cat : (cat as any).id;
+           if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
+            return false;
+           }
+           return true;
+          }).map(cat => {
             const meta = CATEGORY_META[cat];
             const count = candidates.filter(c => c.category === cat && c.isActive).length;
             const profileImage = CATEGORY_PROFILE_IMAGES[cat];

@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { CATEGORY_META, type Category } from '../types';
 import CountdownTimer from '../components/CountdownTimer';
 
-const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart'];
+const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'];
 const DEADLINE = new Date('2026-08-17T23:59:59');
 
 export default function Vote() {
@@ -50,7 +50,15 @@ export default function Vote() {
   ) as Partial<Record<Category, boolean>>;
   const hasVoted = !!votedCategories[activeCategory];
   const votingOpen = election.status === 'open';
-
+  const electionName = election?.type === 'major';
+  const isMajorWelcome = election?.type === 'major';
+  const visibleCategories = CATEGORIES.filter(category => {
+  const catId = typeof category === 'string' ? category : category.id;
+  if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
+    return false; 
+  }
+  return true;
+  });
   const confirmCandidate = candidates.find(c => c.id === confirmId);
   const qrCandidate = candidates.find(c => c.id === qrId);
 
@@ -148,7 +156,7 @@ export default function Vote() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
         {/* Voted Categories Dashboard */}
         <div className="flex flex-wrap gap-3 mb-8 justify-center">
-          {CATEGORIES.map(cat => {
+          {visibleCategories.map(cat => {
             const m = CATEGORY_META[cat];
             const voted = votedCategories[cat];
             return (
@@ -163,7 +171,7 @@ export default function Vote() {
 
         {/* Sleek Segmented Category Tabs */}
         <div className="flex flex-wrap sm:flex-nowrap gap-2 p-1.5 rounded-2xl mb-10 backdrop-blur-xl shadow-sm" style={{ background: cardBg, border: `1px solid ${border}` }}>
-          {CATEGORIES.map(cat => {
+          {visibleCategories.map(cat => {
             const m = CATEGORY_META[cat];
             const isActive = activeCategory === cat;
             const voted = votedCategories[cat];
