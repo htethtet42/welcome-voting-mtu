@@ -15,6 +15,7 @@ interface ElectionContextType {
   fetchGlobalLedger: () => Promise<void>;
 
   // Admin actions
+  setElectionType: (type: 'fresher' | 'major', actorName: string) => void;
   openElection: (actorName: string, autoCloseMinutes?: number) => void;
   closeElection: (actorName: string) => void;
   publishResults: (actorName: string) => void;
@@ -210,6 +211,15 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   // --- ADMIN FUNCTIONS ---
 
+  const setElectionType = useCallback((type: 'fresher' | 'major', actorName: string) => {
+    setElection(prev => {
+      const updated = { ...prev, type };
+      localStorage.setItem('mtu_election', JSON.stringify(updated));
+      return updated;
+    });
+    addAudit(actorName || 'Admin', 'ELECTION_TYPE_CHANGED', `Election type changed to ${type}`);
+  }, [addAudit]);
+
   const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
     const now = new Date();
     const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
@@ -309,7 +319,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   return (
     <ElectionContext.Provider value={{
       election, candidates, voteCounts, voteRecords, auditLog, darkMode,
-      castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
+      setElectionType, castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
       addCandidate, updateCandidate, toggleCandidateActive,
       resetVotes, toggleDarkMode,
       totalVotes, winners,
