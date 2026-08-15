@@ -75,7 +75,9 @@ export default function Landing() {
   const formatNum = (num: number) => String(num).padStart(2, '0');
 
   // Theme Aesthetics
-  const bg = darkMode ? '#0B0E14' : '#e7dbc5';
+  const bg = darkMode 
+                      ? 'linear-gradient(135deg, rgb(15, 12, 41) 0%, rgb(26, 23, 61) 60%, rgb(36, 36, 62) 100%)' 
+                      : 'linear-gradient(125deg, rgb(255, 239, 213) 0%, rgb(167, 153, 110) 60%, #ffe388';
   const cardBg = darkMode ? 'rgba(18, 23, 34, 0.75)' : 'rgba(255, 255, 255, 0.85)';
   const textPrimary = darkMode ? '#F8F9FA' : '#0D1117';
   const textMuted = darkMode ? '#9CA3AF' : '#57534E';
@@ -92,14 +94,14 @@ export default function Landing() {
           <img 
             src="/mtu.webp" 
             alt="MTU Campus"
-            className="w-full h-full object-cover filter blur-[1.5px] scale-105 opacity-50"
+            className="w-full h-full object-cover filter blur-[0.05px] scale-105 opacity-35"
           />
           <div className="absolute inset-0 bg-[#0B0E14]/50 mix-blend-multiply" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-transparent to-[#0B0E14]/20" />
         </div>
         
         {/* Subtle Grid */}
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: 'linear-gradient(#D4AF37 1px, transparent 1px), linear-gradient(90deg, #D4AF37 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <div className="absolute inset-0 pointer-events-none opacity-[0.15] dark:opacity-[0.07]" style={{ backgroundImage: 'linear-gradient(#D4AF37 1px, transparent 1px), linear-gradient(90deg, #D4AF37 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
         {/* Floating Crown/Logo */}
         <div className="relative animate-[bounce_4s_infinite] mb-8 drop-shadow-2xl z-10">

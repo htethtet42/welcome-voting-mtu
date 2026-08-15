@@ -27,7 +27,7 @@ export default function Navbar() {
   return (
     <nav
       className={`fixed top-0 inset-x-0 z-50 border-b transition-colors duration-300 ${
-        darkMode ? 'bg-night-950/90 border-gold-500/10' : 'bg-cream-50/90 border-gold-500/20'
+        darkMode ? 'bg-night-950/90 border-gold-500/10' : 'bg-cream-70/90 border-gold-500/20'
       } backdrop-blur-xl`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
