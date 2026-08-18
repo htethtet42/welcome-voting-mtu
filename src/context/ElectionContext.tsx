@@ -92,9 +92,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const syncStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/election`, {
-          headers: { 'Bypass-Tunnel-Reminder': 'true' }
-        });
+        const res = await fetch(`${API_URL}/election`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.status) {
@@ -133,9 +131,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const fetchGlobalLedger = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/ballots`, {
-        headers: { 'Bypass-Tunnel-Reminder': 'true' }
-      });
+      const response = await fetch(`${API_URL}/ballots`);
       if (!response.ok) throw new Error('Failed to fetch ballots');
       
       const data = await response.json();
