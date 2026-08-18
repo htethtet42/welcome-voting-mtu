@@ -64,21 +64,37 @@ type AuditLog struct {
 
 // enableCORS intercepts ALL incoming HTTP requests (including OPTIONS preflights)
 func enableCORS(next http.Handler) http.Handler {
- return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Access-Control-Allow-Origin", "*")
-  w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-  
-  // ADD Bypass-Tunnel-Reminder to this list:
-  w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Bypass-Tunnel-Reminder, bypass-tunnel-reminder")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-  // Handle browser preflight checks immediately
-  if r.Method == http.MethodOptions {
-   w.WriteHeader(http.StatusOK)
-   return
-  }
+		origin := r.Header.Get("Origin")
 
-  next.ServeHTTP(w, r)
- })
+		allowedOrigins := map[string]bool{
+			"http://localhost:5175":               true,
+			"http://127.0.0.1:5175":               true,
+			"https://welcome-voting-mtu-2q1t-a9zh6qi5g-group-ii.vercel.app/":true,
+			"https://welcome-voting-mtu-p9la-1u5uaw5pr-group-ii.vercel.app/": true,
+		}
+
+		if allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set(
+				"Access-Control-Allow-Methods",
+				"GET, POST, PUT, DELETE, OPTIONS",
+			)
+			w.Header().Set(
+				"Access-Control-Allow-Headers",
+				"Content-Type, Authorization",
+			)
+		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // --- HANDLERS ---
