@@ -306,7 +306,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
 
-  const winners = (['king', 'queen', 'style', 'smart'] as Category[]).reduce((result, category) => {
+  const winners = (['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).reduce((result, category) => {
     result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
     return result;
   }, {} as Record<Category, Candidate | null>);
