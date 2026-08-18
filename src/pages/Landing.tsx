@@ -118,7 +118,7 @@ export default function Landing() {
 
         {/* Typography */}
         <h1 className="font-display font-black leading-[1.1] mb-6 z-10 tracking-tight" style={{ fontSize: 'clamp(3rem, 8vw, 6rem)' }}>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#D4AF37] via-[#F4D068] to-[#D4AF37] animate-gradient-x">
+          <span className="text-shimmer">
             MTU Fresher Welcome
           </span>
           <br />
