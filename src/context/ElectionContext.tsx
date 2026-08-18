@@ -168,9 +168,8 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch(`${API_URL}/votes`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true'
+        headers: {
+        'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           voterId: voter.id,
