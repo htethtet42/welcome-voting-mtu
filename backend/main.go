@@ -237,7 +237,7 @@ func AuditHandler(db *sql.DB) http.HandlerFunc {
 func main() {
  dsn := os.Getenv("DATABASE_URL")
  if dsn == "" {
-  dsn = "root:starfruit@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
+  dsn = "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
  }
 
  db, err := sql.Open("mysql", dsn)
