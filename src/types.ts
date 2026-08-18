@@ -115,9 +115,9 @@ smart: {
 
 popular_man: {
   label: 'Popular',
-  color: '#FB923C',
-  bgColor: 'rgba(251,146,60,0.12)',
-  borderColor: 'rgba(251,146,60,0.3)',
+  color: '#e91111',
+  bgColor: 'rgba(245, 59, 59, 0.12)',
+  borderColor: 'rgba(175, 8, 8, 0.3)',
   gender: 'male',
   icon: '🤵🏻',
   description: 'Most popular — boys nominees only',
@@ -125,9 +125,9 @@ popular_man: {
 
 popular_woman: {
   label: 'Popular',
-  color: '#E879F9',
-  bgColor: 'rgba(232,121,249,0.12)',
-  borderColor: 'rgba(232,121,249,0.3)',
+  color: '#c93fc9',
+  bgColor: 'rgba(164, 48, 182, 0.12)',
+  borderColor: 'rgba(202, 13, 231, 0.3)',
   gender: 'female',
   icon: '🌟',
   description: 'Most popular — girls nominees only',
