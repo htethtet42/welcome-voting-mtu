@@ -73,6 +73,7 @@ func enableCORS(next http.Handler) http.Handler {
 			"http://127.0.0.1:5175":               true,
 			"https://welcome-voting-mtu-2q1t-a9zh6qi5g-group-ii.vercel.app/":true,
 			"https://welcome-voting-mtu-p9la-1u5uaw5pr-group-ii.vercel.app/": true,
+			"https://welcome-voting-mtu-p9la.vercel.app/":true,
 		}
 
 		if allowedOrigins[origin] {
