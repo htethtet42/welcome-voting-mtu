@@ -47,7 +47,7 @@ const API_URL = 'https://1pgoyq-ip-103-57-207-5.tunnelmole.net/api';
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
   const [election, setElection] = useState<ElectionState>(() => {
-    const stored = load<ElectionState | null>('mtu_election', null);
+    const stored = load<ElectionState | null>('mtu_election_v3', null);
     if (!stored) return INITIAL_ELECTION;
     return { 
       ...stored, 

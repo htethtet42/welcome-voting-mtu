@@ -71,6 +71,7 @@ const Field = ({ label, textMuted, children }: { label: string; textMuted?: stri
     {children}
   </div>
 );
+const API_URL = 'https://1pgoyq-ip-103-57-207-5.tunnelmole.net/api';
 
 export default function Admin() {
   const {
@@ -189,6 +190,23 @@ export default function Admin() {
     URL.revokeObjectURL(url);
   };
 
+  // === Event Handler ===
+  const handleTypeChange = async (newType: 'fresher' | 'major') => {
+  // 1. Update state locally in ElectionContext
+  setElectionType(newType, actorName);
+
+  // 2. Broadcast the update to your backend server so all mobile devices pull it
+  try {
+    await fetch(`${API_URL}/election`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: newType }),
+    });
+  } catch (err) {
+    console.error('Failed to sync election type with backend:', err);
+  }
+};
+
   // === Modal Handlers ===
   const openAddModal = () => { setForm(BLANK_FORM); setCandidateModal({ mode: 'add' }); };
   const openEditModal = (c: Candidate) => {
@@ -299,7 +317,7 @@ export default function Admin() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setElectionType('fresher', 'Admin')}
+                  onClick={() => handleTypeChange('fresher')}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                     election.type !== 'major'
                       ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
@@ -308,18 +326,18 @@ export default function Admin() {
                 >
                   The Whole Welcome
                 </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setElectionType('major', 'Admin')}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    election.type === 'major'
-                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                      : 'bg-stone-200/80 text-stone-700 hover:bg-stone-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                  }`}
-                >
-                  Major Welcome
-                </button>
+  
+              <button
+                type="button"
+                onClick={() => handleTypeChange('major')}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                  election.type === 'major'
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'bg-stone-200/80 text-stone-700 hover:bg-stone-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                }`}
+              >
+                Major Welcome
+              </button>
               </div>
             </div>
 
