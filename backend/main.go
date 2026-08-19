@@ -100,6 +100,7 @@ func isAllowedOrigin(origin string) bool {
 	// Static Allowed Origins
 	allowed := map[string]bool{
 		"http://localhost:5173": true, // Added default Vite port
+		"http://localhost:5174": true,
 		"http://localhost:5175": true,
 		"http://127.0.0.1:5175": true,
 	}
