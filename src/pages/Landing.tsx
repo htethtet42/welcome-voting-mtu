@@ -209,7 +209,20 @@ export default function Landing() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
           {visibleCategories.map(cat => {
             const meta = CATEGORY_META[cat] || DEFAULT_META;
-            const count = candidates.filter(c => c.category === cat && c.isActive).length;
+            const count = candidates.filter(c => {
+              if (!c.isActive) return false;
+              
+              // Exact match
+              if (c.category === cat) return true;
+              
+              // Cast c.category as string to check legacy data safely
+              if ((c.category as string) === 'popular') {
+                if (cat === 'popular_man') return c.id.includes('man') || (c as any).gender === 'male';
+                if (cat === 'popular_woman') return c.id.includes('woman') || (c as any).gender === 'female';
+              }
+
+              return false;
+            }).length;
             const profileImage = CATEGORY_PROFILE_IMAGES[cat];
             return (
               <Link
