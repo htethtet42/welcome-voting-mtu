@@ -15,7 +15,7 @@ interface ElectionContextType {
   fetchGlobalLedger: () => Promise<void>;
 
   // Admin actions
-  setElectionType: (type: 'fresher' | 'major', actorName: string) => void;
+  setElectionType: (type: 'fresher' | 'major', actorName: string) => Promise<void>;
   openElection: (actorName: string, autoCloseMinutes?: number) => void;
   closeElection: (actorName: string) => void;
   publishResults: (actorName: string) => void;
@@ -88,17 +88,20 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // Sync status from Go database every 3 seconds
+  // Sync status and election type from Go database every 3 seconds
   useEffect(() => {
     const syncStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/election`);
+        const res = await fetch(`${API_URL}/election`, {
+          headers: { 'Bypass-Tunnel-Reminder': 'true' }
+        });
         if (res.ok) {
           const data = await res.json();
-          if (data && data.status) {
+          if (data) {
             setElection(prev => ({
               ...prev,
-              status: data.status,
+              status: data.status ?? prev.status,
+              type: data.type ?? prev.type, // Synchronizes whole/major mode globally
               opensAt: data.opensAt ? new Date(data.opensAt) : null,
               closesAt: data.closesAt ? new Date(data.closesAt) : null,
             }));
@@ -131,7 +134,9 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const fetchGlobalLedger = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/ballots`);
+      const response = await fetch(`${API_URL}/ballots`, {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' }
+      });
       if (!response.ok) throw new Error('Failed to fetch ballots');
       
       const data = await response.json();
@@ -169,7 +174,8 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`${API_URL}/votes`, {
         method: 'POST',
         headers: {
-        'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
         },
         body: JSON.stringify({
           voterId: voter.id,
@@ -206,14 +212,27 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   // --- ADMIN FUNCTIONS ---
 
-  const setElectionType = useCallback((type: 'fresher' | 'major', actorName: string) => {
+  const setElectionType = useCallback(async (type: 'fresher' | 'major', actorName: string) => {
+    try {
+      await fetch(`${API_URL}/election`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true' 
+        },
+        body: JSON.stringify({ type })
+      });
+    } catch (error) {
+      console.error("Error updating election type on server:", error);
+    }
+
     setElection(prev => {
       const updated = { ...prev, type };
       localStorage.setItem('mtu_election', JSON.stringify(updated));
       return updated;
     });
     addAudit(actorName || 'Admin', 'ELECTION_TYPE_CHANGED', `Election type changed to ${type}`);
-  }, [addAudit]);
+  }, [addAudit, API_URL]);
 
   const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
     const now = new Date();
