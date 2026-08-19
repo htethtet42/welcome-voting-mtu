@@ -92,7 +92,7 @@ export default function Login() {
             <Crown size={30} style={{ color: '#D4AF37' }} />
           </div>
           <h1 className="font-display font-bold text-2xl" style={{ color: textPrimary }}>
-            MTU King &amp; Queen 2026
+            <span className="text-shimmer">MTU King &amp; Queen 2026</span>
           </h1>
           <p className="text-sm mt-1" style={{ color: textMuted }}>Sign in to cast your vote</p>
         </div>
