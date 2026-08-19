@@ -8,7 +8,7 @@ import { CATEGORY_META, type Category } from '../types';
 import CountdownTimer from '../components/CountdownTimer';
 
 const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'];
-const DEADLINE = new Date('2026-08-17T23:59:59');
+const DEADLINE = new Date('2026-09-02T23:59:59');
 
 export default function Vote() {
   const { candidates, election, voteRecords, castVote, darkMode } = useElection();

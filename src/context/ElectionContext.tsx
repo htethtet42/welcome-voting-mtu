@@ -43,6 +43,7 @@ function load<T>(key: string, fallback: T): T {
 function makeAuditEntry(actor: string, action: string, details: string): AuditEntry {
   return { id: crypto.randomUUID(), actor, action, details, timestamp: new Date() };
 }
+const API_URL = 'https://1pgoyq-ip-103-57-207-5.tunnelmole.net/api';
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
   const [election, setElection] = useState<ElectionState>(() => {
@@ -56,24 +57,63 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     };
   });
 
+  // 1. Initialize candidate state using 'mtu_candidates_v3'
   const [candidates, setCandidates] = useState<Candidate[]>(() => {
-  const loaded = load<Candidate[]>('mtu_candidates_v2', SEED_CANDIDATES);
-  
-  return loaded.map(candidate => {
+  const loaded = load<Candidate[]>('mtu_candidates_v3', SEED_CANDIDATES);
+
+  return loaded.map((candidate) => {
     let updatedCat = candidate.category;
 
-    // Fix category mapping if old key 'popular' was saved in local storage
-        if ((candidate as any).category === 'popular') {
-          updatedCat = (candidate as any).gender === 'female' || candidate.id.includes('woman') || candidate.id.includes('female')
-      ? 'popular_woman'
-      : 'popular_man';
+    // Normalize legacy 'popular' categories
+    if ((candidate as any).category === 'popular') {
+      const isFemale =
+        (candidate as any).gender === 'female' ||
+        candidate.id.toLowerCase().includes('woman') ||
+        candidate.id.toLowerCase().includes('female');
+
+      updatedCat = isFemale ? 'popular_woman' : 'popular_man';
     }
+
     if (candidate.id.startsWith('smart-')) updatedCat = 'smart';
     if (candidate.id.startsWith('style-')) updatedCat = 'style';
 
     return { ...candidate, category: updatedCat as Category };
   });
 });
+
+// 2. Keep localStorage synced with the updated key
+useEffect(() => { 
+  localStorage.setItem('mtu_candidates_v3', JSON.stringify(candidates)); 
+}, [candidates]);
+
+// 3. Global Sync Effect (Polls backend every 3 seconds for election status and type)
+useEffect(() => {
+  const syncStatus = async () => {
+    try {
+      const res = await fetch(`${API_URL}/election`, {
+        headers: { 'Bypass-Tunnel-Reminder': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setElection(prev => ({
+            ...prev,
+            status: data.status ?? prev.status,
+            type: data.type ?? prev.type, // <--- Synchronizes election mode ('fresher' vs 'major') globally
+            opensAt: data.opensAt ? new Date(data.opensAt) : null,
+            closesAt: data.closesAt ? new Date(data.closesAt) : null,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch status from server:", err);
+    }
+  };
+
+  syncStatus();
+  const interval = setInterval(syncStatus, 3000);
+  return () => clearInterval(interval);
+}, [API_URL]);
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
     const stored = load<AuditEntry[]>('mtu_audit', []);
@@ -84,7 +124,6 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
 
-  const API_URL = 'https://1pgoyq-ip-103-57-207-5.tunnelmole.net/api';
 
   const addAudit = useCallback((actor: string, action: string, details: string) => {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
@@ -118,7 +157,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 }, [API_URL]);
 
   // Sync Local Storage
-  useEffect(() => { localStorage.setItem('mtu_candidates_v2', JSON.stringify(candidates)); }, [candidates]);
+  useEffect(() => { localStorage.setItem('mtu_candidates_v3', JSON.stringify(candidates)); }, [candidates]);
   useEffect(() => { localStorage.setItem('mtu_audit', JSON.stringify(auditLog)); }, [auditLog]);
   useEffect(() => {
     localStorage.setItem('mtu_dark', JSON.stringify(darkMode));

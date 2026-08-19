@@ -32,24 +32,24 @@ const DEFAULT_META = {
   bg: 'rgba(212,175,55,0.1)'
 };
 
-const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
+const FALLBACK_DEADLINE = new Date('2026-09-02T23:59:59');
 
 export default function Landing() {
   const { darkMode, election, candidates, voteRecords } = useElection();
+  
+  // Checks if Major Welcome mode is active
   const isMajorWelcome = election?.type === 'major';
 
-  // Filter out popular categories when Major Welcome mode is active
+  // Filters out BOTH popular categories when Major Welcome is active
   const visibleCategories = CATEGORIES.filter(cat => {
     const catId = typeof cat === 'string' ? cat : (cat as any).id;
-    if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman')) {
+    
+    if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman' || catId === 'popular')) {
       return false;
     }
     return true;
   });
-
-  const activeNomineesCount = candidates.filter(
-    c => c.isActive && visibleCategories.includes(c.category as any)
-  ).length;
+  const activeNomineesCount = candidates.filter(c => c.isActive && visibleCategories.includes(c.category as any)).length;
 
   const { isAuthenticated } = useAuth();
 
@@ -211,7 +211,7 @@ export default function Landing() {
             const meta = CATEGORY_META[cat] || DEFAULT_META;
             const count = candidates.filter(c => {
               if (!c.isActive) return false;
-              
+
               // Exact match
               if (c.category === cat) return true;
               

@@ -230,7 +230,7 @@ export const INITIAL_ELECTION: ElectionState = {
   name: 'MTU Voting 2026',
   status: 'open',
   opensAt: new Date('2026-07-22T09:00:00'),
-  closesAt: new Date('2026-08-17T23:59:59'),
+  closesAt: new Date('2026-09-02T23:59:59'),
   publishedAt: null,
 };
 
