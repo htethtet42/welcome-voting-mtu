@@ -56,13 +56,24 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     };
   });
 
-  const [candidates, setCandidates] = useState<Candidate[]>(() =>
-    load<Candidate[]>('mtu_candidates_v2', SEED_CANDIDATES).map(candidate => {
-      if (candidate.id.startsWith('smart-')) return { ...candidate, category: 'smart' };
-      if (candidate.id.startsWith('style-')) return { ...candidate, category: 'style' };
-      return candidate;
-    })
-  );
+  const [candidates, setCandidates] = useState<Candidate[]>(() => {
+  const loaded = load<Candidate[]>('mtu_candidates_v2', SEED_CANDIDATES);
+  
+  return loaded.map(candidate => {
+    let updatedCat = candidate.category;
+
+    // Fix category mapping if old key 'popular' was saved in local storage
+        if ((candidate as any).category === 'popular') {
+          updatedCat = (candidate as any).gender === 'female' || candidate.id.includes('woman') || candidate.id.includes('female')
+      ? 'popular_woman'
+      : 'popular_man';
+    }
+    if (candidate.id.startsWith('smart-')) updatedCat = 'smart';
+    if (candidate.id.startsWith('style-')) updatedCat = 'style';
+
+    return { ...candidate, category: updatedCat as Category };
+  });
+});
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
     const stored = load<AuditEntry[]>('mtu_audit', []);
