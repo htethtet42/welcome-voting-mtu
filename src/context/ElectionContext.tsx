@@ -73,7 +73,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
 
-  const API_URL = 'https://0zu1to-ip-103-57-207-5.tunnelmole.net/api';
+  const API_URL = 'https://nl23iv-ip-103-57-207-5.tunnelmole.net/api';
 
   const addAudit = useCallback((actor: string, action: string, details: string) => {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
