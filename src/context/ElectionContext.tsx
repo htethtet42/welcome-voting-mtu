@@ -79,8 +79,34 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
   }, []);
 
+  // Sync Global
+  useEffect(() => {
+  const syncStatus = async () => {
+    try {
+      const res = await fetch(`${API_URL}/election`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setElection(prev => ({
+            ...prev,
+            status: data.status ?? prev.status,
+            type: data.type ?? prev.type, // <-- Ensure type is synchronized globally
+            opensAt: data.opensAt ? new Date(data.opensAt) : null,
+            closesAt: data.closesAt ? new Date(data.closesAt) : null,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch status from server:", err);
+    }
+  };
+
+  syncStatus();
+  const interval = setInterval(syncStatus, 3000);
+  return () => clearInterval(interval);
+}, [API_URL]);
+
   // Sync Local Storage
-  useEffect(() => { localStorage.setItem('mtu_election', JSON.stringify(election)); }, [election]);
   useEffect(() => { localStorage.setItem('mtu_candidates_v2', JSON.stringify(candidates)); }, [candidates]);
   useEffect(() => { localStorage.setItem('mtu_audit', JSON.stringify(auditLog)); }, [auditLog]);
   useEffect(() => {
@@ -88,20 +114,17 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // Sync status and election type from Go database every 3 seconds
+  // Sync status from Go database every 3 seconds
   useEffect(() => {
     const syncStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/election`, {
-          headers: { 'Bypass-Tunnel-Reminder': 'true' }
-        });
+        const res = await fetch(`${API_URL}/election`);
         if (res.ok) {
           const data = await res.json();
-          if (data) {
+          if (data && data.status) {
             setElection(prev => ({
               ...prev,
-              status: data.status ?? prev.status,
-              type: data.type ?? prev.type, // Synchronizes whole/major mode globally
+              status: data.status,
               opensAt: data.opensAt ? new Date(data.opensAt) : null,
               closesAt: data.closesAt ? new Date(data.closesAt) : null,
             }));
@@ -134,9 +157,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
 
   const fetchGlobalLedger = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/ballots`, {
-        headers: { 'Bypass-Tunnel-Reminder': 'true' }
-      });
+      const response = await fetch(`${API_URL}/ballots`);
       if (!response.ok) throw new Error('Failed to fetch ballots');
       
       const data = await response.json();
@@ -174,8 +195,7 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`${API_URL}/votes`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true'
+        'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           voterId: voter.id,
@@ -213,28 +233,28 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   // --- ADMIN FUNCTIONS ---
 
   const setElectionType = useCallback(async (type: 'fresher' | 'major', actorName: string) => {
-    try {
-      await fetch(`${API_URL}/election`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true' 
-        },
-        body: JSON.stringify({ type })
-      });
-    } catch (error) {
-      console.error("Error updating election type on server:", error);
-    }
-
-    setElection(prev => {
-      const updated = { ...prev, type };
-      localStorage.setItem('mtu_election', JSON.stringify(updated));
-      return updated;
+  try {
+    await fetch(`${API_URL}/election`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true' 
+      },
+      body: JSON.stringify({ type })
     });
-    addAudit(actorName || 'Admin', 'ELECTION_TYPE_CHANGED', `Election type changed to ${type}`);
-  }, [addAudit, API_URL]);
+  } catch (error) {
+    console.error("Error updating election type on server:", error);
+  }
 
-  const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
+  setElection(prev => {
+    const updated = { ...prev, type };
+    localStorage.setItem('mtu_election', JSON.stringify(updated));
+    return updated;
+  });
+  addAudit(actorName || 'Admin', 'ELECTION_TYPE_CHANGED', `Election type changed to ${type}`);
+}, [addAudit, API_URL]);
+
+    const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
     const now = new Date();
     const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
 
