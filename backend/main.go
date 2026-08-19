@@ -69,11 +69,11 @@ func enableCORS(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 
 		allowedOrigins := map[string]bool{
-			"http://localhost:5175":               true,
-			"http://127.0.0.1:5175":               true,
-			"https://welcome-voting-mtu-2q1t-a9zh6qi5g-group-ii.vercel.app":true,
+			"http://localhost:5175": true,
+			"http://127.0.0.1:5175": true,
+			"https://welcome-voting-mtu-2q1t-a9zh6qi5g-group-ii.vercel.app": true,
 			"https://welcome-voting-mtu-p9la-1u5uaw5pr-group-ii.vercel.app": true,
-			"https://welcome-voting-mtu-p9la.vercel.app":true,
+			"https://welcome-voting-mtu-p9la.vercel.app":                    true,
 		}
 
 		if allowedOrigins[origin] {
@@ -252,39 +252,58 @@ func AuditHandler(db *sql.DB) http.HandlerFunc {
 // --- MAIN FUNCTION ---
 
 func main() {
- dsn := os.Getenv("DATABASE_URL")
- if dsn == "" {
-  dsn = "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
- }
+	dsn := os.Getenv("DATABASE_URL")
 
- db, err := sql.Open("mysql", dsn)
- if err != nil {
-  log.Fatalf("Error connecting to database: %v", err)
- }
- defer db.Close()
+	if dsn == "" {
+		host := os.Getenv("MYSQLHOST")
+		port := os.Getenv("MYSQLPORT")
+		user := os.Getenv("MYSQLUSER")
+		password := os.Getenv("MYSQLPASSWORD")
+		database := os.Getenv("MYSQLDATABASE")
 
- if err := db.Ping(); err != nil {
-  log.Fatalf("Error verifying database connection: %v", err)
- }
- fmt.Println("Successfully connected to MySQL database!")
+		if host != "" && port != "" && user != "" && database != "" {
+			dsn = fmt.Sprintf(
+				"%s:%s@tcp(%s:%s)/%s?parseTime=true",
+				user,
+				password,
+				host,
+				port,
+				database,
+			)
+		}
+	}
 
- // Create a router
- mux := http.NewServeMux()
+	if dsn == "" {
+		// Local development fallback.
+		dsn = "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
+	}
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatalf("Error connecting to database: %v", err)
+	}
+	defer db.Close()
 
- // Register handlers directly without individual CORS wrappers
- mux.HandleFunc("/api/votes", CastVoteHandler(db))
- mux.HandleFunc("/api/ballots", GetAllBallotsHandler(db))
- mux.HandleFunc("/api/candidates", CandidatesHandler(db))
- mux.HandleFunc("/api/election", ElectionHandler(db))
- mux.HandleFunc("/api/audit", AuditHandler(db))
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Error verifying database connection: %v", err)
+	}
+	fmt.Println("Successfully connected to MySQL database!")
 
- port := os.Getenv("PORT")
- if port == "" {
-  port = "8081"
- }
+	// Create a router
+	mux := http.NewServeMux()
 
- fmt.Printf("Server running on port %s...\n", port)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "ok",
+		})
+	})
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8081"
+	}
 
- // FIX: Wrap the entire 'mux' with your 'enableCORS' middleware and pass it into ListenAndServe
- log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
+	fmt.Printf("Server running on port %s...\n", port)
+
+	// FIX: Wrap the entire 'mux' with your 'enableCORS' middleware and pass it into ListenAndServe
+	log.Fatal(http.ListenAndServe(":"+port, enableCORS(mux)))
 }
