@@ -81,25 +81,23 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   });
 });
 
-// 2. Keep localStorage synced with the updated key
-useEffect(() => { 
-  localStorage.setItem('mtu_candidates_v3', JSON.stringify(candidates)); 
-}, [candidates]);
-
-// 3. Global Sync Effect (Polls backend every 3 seconds for election status and type)
+// Global Sync & Mobile Re-sync Effect
 useEffect(() => {
   const syncStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/election`, {
+      // Add cache: 'no-store' and timestamp query param to bypass aggressive mobile caching
+      const res = await fetch(`${API_URL}/election?t=${Date.now()}`, {
+        cache: 'no-store',
         headers: { 'Bypass-Tunnel-Reminder': 'true' }
       });
+
       if (res.ok) {
         const data = await res.json();
         if (data) {
           setElection(prev => ({
             ...prev,
             status: data.status ?? prev.status,
-            type: data.type ?? prev.type, // <--- Synchronizes election mode ('fresher' vs 'major') globally
+            type: data.type ?? prev.type, // Synchronizes 'fresher' vs 'major' globally
             opensAt: data.opensAt ? new Date(data.opensAt) : null,
             closesAt: data.closesAt ? new Date(data.closesAt) : null,
           }));
@@ -110,9 +108,25 @@ useEffect(() => {
     }
   };
 
+  // 1. Initial sync execution
   syncStatus();
+
+  // 2. Poll every 3 seconds for active users
   const interval = setInterval(syncStatus, 3000);
-  return () => clearInterval(interval);
+
+  // 3. Force immediate fetch as soon as a mobile user returns to/unlocks the tab
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      syncStatus();
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  return () => {
+    clearInterval(interval);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
 }, [API_URL]);
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
