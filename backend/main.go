@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -62,33 +63,26 @@ type AuditLog struct {
 
 // --- GLOBAL CORS MIDDLEWARE ---
 
-// enableCORS intercepts ALL incoming HTTP requests (including OPTIONS preflights)
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		origin := r.Header.Get("Origin")
 
-		allowedOrigins := map[string]bool{
-			"http://localhost:5175":               true,
-			"http://127.0.0.1:5175":               true,
-			"https://welcome-voting-mtu-2q1t-a9zh6qi5g-group-ii.vercel.app":true,
-			"https://welcome-voting-mtu-p9la-1u5uaw5pr-group-ii.vercel.app": true,
-			"https://welcome-voting-mtu-p9la.vercel.app":true,
-		}
-
-		if allowedOrigins[origin] {
+		// Check exact matches or allowed domain suffixes (.vercel.app)
+		if isAllowedOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set(
 				"Access-Control-Allow-Methods",
 				"GET, POST, PUT, DELETE, OPTIONS",
 			)
+			// Added 'Bypass-Tunnel-Reminder' to allowed headers
 			w.Header().Set(
 				"Access-Control-Allow-Headers",
-				"Content-Type, Authorization",
+				"Content-Type, Authorization, Bypass-Tunnel-Reminder",
 			)
 		}
 
+		// Handle OPTIONS preflight requests immediately
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -96,6 +90,30 @@ func enableCORS(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isAllowedOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+
+	// Static Allowed Origins
+	allowed := map[string]bool{
+		"http://localhost:5173": true, // Added default Vite port
+		"http://localhost:5175": true,
+		"http://127.0.0.1:5175": true,
+	}
+
+	if allowed[origin] {
+		return true
+	}
+
+	// Dynamic Vercel deployment matching (*.vercel.app)
+	if strings.HasSuffix(origin, ".vercel.app") {
+		return true
+	}
+
+	return false
 }
 
 // --- HANDLERS ---
