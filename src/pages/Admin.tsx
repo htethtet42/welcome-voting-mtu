@@ -286,10 +286,12 @@ export default function Admin() {
               ))}
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="p-4 rounded-xl bg-amber-100/60 border border-amber-200/60 dark:bg-slate-800 dark:border-slate-700/50 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
-                <h3 className="font-semibold text-white">Election Event Type</h3>
-                <p className="text-sm text-slate-400">
+                <h3 className="font-semibold text-stone-900 dark:text-white">
+                  Election Event Type
+                </h3>
+                <p className="text-sm text-stone-600 dark:text-slate-400">
                   {election.type === 'major' ? 'Major Welcome Mode' : 'The Whole Welcome Mode'}
                 </p>
               </div>
@@ -300,19 +302,20 @@ export default function Admin() {
                   onClick={() => setElectionType('fresher', 'Admin')}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                     election.type !== 'major'
-                      ? 'bg-amber-500 text-slate-950 font-bold'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                      : 'bg-stone-200/80 text-stone-700 hover:bg-stone-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
                   }`}
                 >
                   The Whole Welcome
                 </button>
+                
                 <button
                   type="button"
                   onClick={() => setElectionType('major', 'Admin')}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
                     election.type === 'major'
-                      ? 'bg-amber-500 text-slate-950 font-bold'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                      : 'bg-stone-200/80 text-stone-700 hover:bg-stone-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
                   }`}
                 >
                   Major Welcome
