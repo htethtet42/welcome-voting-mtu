@@ -85,10 +85,10 @@ export default function Livestream() {
           <div className="flex items-center gap-3">
             <div
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold"
-              style={{ background: 'rgba(255,77,141,0.15)', color: '#FF4D8D', border: '1px solid rgba(255,77,141,0.3)' }}
+              style={{ background: 'rgba(107, 255, 77, 0.15)', color: '#4dff6b', border: '1px solid rgba(142, 255, 77, 0.3)' }}
             >
               <span className="w-2 h-2 rounded-full bg-blush-500 animate-pulse" />
-              {activeVideoId ? 'LIVE' : 'OFFLINE'}
+              {activeVideoId ? 'LIVE' : 'ONLINE'}
             </div>
             <div>
               <h1 className="font-display font-bold text-lg sm:text-xl" style={{ color: textPrimary }}>
