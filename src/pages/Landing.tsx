@@ -7,7 +7,7 @@ import { CATEGORY_META, type Category, type ElectionStatus } from '../types';
 
 const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'];
 
-const CATEGORY_PROFILE_IMAGES: Record<Category, string> = {
+const CATEGORY_PROFILE_IMAGES: Record<string, string> = {
   king: '/king.png',
   queen: '/queen.jpg',
   style: '/style.jpg',
@@ -21,6 +21,15 @@ const STATUS_META: Record<ElectionStatus, { label: string; color: string; bg: st
   open:       { label: 'Voting Live', color: '#00C9A7', bg: 'rgba(0,201,167,0.15)', border: 'rgba(0,201,167,0.4)', dot: '#00C9A7' },
   closed:     { label: 'Voting Closed', color: '#FF7AAE', bg: 'rgba(255,122,174,0.1)', border: 'rgba(255,122,174,0.3)', dot: '#FF7AAE' },
   published:  { label: 'Results Published', color: '#D4AF37', bg: 'rgba(212,175,55,0.1)', border: 'rgba(212,175,55,0.3)', dot: '#D4AF37' },
+};
+
+const DEFAULT_META = {
+  label: 'General Category',
+  description: 'Vote for outstanding nominees.',
+  icon: '👑',
+  color: '#D4AF37',
+  borderColor: 'rgba(212,175,55,0.3)',
+  bg: 'rgba(212,175,55,0.1)'
 };
 
 const FALLBACK_DEADLINE = new Date('2026-08-17T23:59:59');
@@ -82,7 +91,7 @@ export default function Landing() {
   const textPrimary = darkMode ? '#F8F9FA' : '#0D1117';
   const textMuted = darkMode ? '#9CA3AF' : '#57534E';
   const border = darkMode ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.25)';
-  const sm = STATUS_META[election.status];
+  const sm = STATUS_META[election.status] || STATUS_META.scheduled;
 
   return (
     <div style={{ background: bg, color: textPrimary, minHeight: '100vh' }} className="pt-16 selection:bg-[#D4AF37] selection:text-[#0A0F1D]">
@@ -199,7 +208,7 @@ export default function Landing() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
           {visibleCategories.map(cat => {
-            const meta = CATEGORY_META[cat];
+            const meta = CATEGORY_META[cat] || DEFAULT_META;
             const count = candidates.filter(c => c.category === cat && c.isActive).length;
             const profileImage = CATEGORY_PROFILE_IMAGES[cat];
             return (
@@ -256,7 +265,7 @@ export default function Landing() {
               .filter(c => visibleCategories.includes(c.category as any))
               .slice(0, 10)
               .map(c => {
-                const meta = CATEGORY_META[c.category];
+                const meta = CATEGORY_META[c.category] || DEFAULT_META;
                 return (
                   <Link key={c.id} to={election.status === 'open' ? `/vote?category=${c.category}` : '/results'} className="group relative rounded-2xl overflow-hidden aspect-[3/4] bg-gray-900 shadow-lg">
                     <img src={c.photo} alt={c.name} className="w-full h-full object-cover transition-all duration-700 grayscale-[0.8] opacity-80 group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110" />
