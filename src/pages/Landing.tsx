@@ -36,6 +36,8 @@ const FALLBACK_DEADLINE = new Date('2026-09-02T23:59:59');
 
 export default function Landing() {
   const { darkMode, election, candidates, voteRecords } = useElection();
+
+  console.log("Current Election Type on Mobile:", election.type);
   
   // Checks if Major Welcome mode is active
   const isMajorWelcome = election?.type === 'major';

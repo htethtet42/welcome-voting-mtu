@@ -87,23 +87,34 @@ useEffect(() => {
     try {
       // Add cache: 'no-store' and timestamp query param to bypass aggressive mobile caching
       const res = await fetch(`${API_URL}/election?t=${Date.now()}`, {
+        method: 'GET',
         cache: 'no-store',
-        headers: { 'Bypass-Tunnel-Reminder': 'true' }
+        headers: { 'Bypass-Tunnel-Reminder': 'true' ,
+                   'Pragma': 'no-cache',
+                   'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
       });
 
       if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          setElection(prev => ({
-            ...prev,
-            status: data.status ?? prev.status,
-            type: data.type ?? prev.type, // Synchronizes 'fresher' vs 'major' globally
-            opensAt: data.opensAt ? new Date(data.opensAt) : null,
-            closesAt: data.closesAt ? new Date(data.closesAt) : null,
-          }));
+          const data = await res.json();
+          if (data) {
+            setElection(prev => {
+              const updated = {
+                ...prev,
+                status: data.status ?? prev.status,
+                type: data.type ?? prev.type,
+                opensAt: data.opensAt ? new Date(data.opensAt) : null,
+                closesAt: data.closesAt ? new Date(data.closesAt) : null,
+              };
+
+              // Save synced server state directly into LocalStorage to survive mobile page reloads
+              localStorage.setItem('mtu_election', JSON.stringify(updated));
+
+              return updated;
+            });
+          }
         }
-      }
-    } catch (err) {
+      } catch (err) {
       console.error("Failed to fetch status from server:", err);
     }
   };
