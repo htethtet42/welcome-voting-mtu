@@ -39,27 +39,24 @@ export default function Landing() {
 
   console.log("Current Election Type on Mobile:", election.type);
   
-  const isMajorWelcome = election?.type === 'major';
+  // 1. Memoize or guard election state safely
+const isMajorWelcome = election?.type === 'major';
 
-// Filter out popular categories when Major Welcome mode is active
-const visibleCategories = CATEGORIES.filter((cat: any) => {
-  const categoryId = typeof cat === 'string' ? cat : cat.id;
-
+// 2. Derive visible categories cleanly
+const visibleCategories = CATEGORIES.filter((cat) => {
   if (isMajorWelcome) {
-    return categoryId !== 'popular_man' && categoryId !== 'popular_woman' && categoryId !== 'popular';
+    return cat !== 'popular_man' && cat !== 'popular_woman';
   }
   return true;
 });
 
-// Extract string IDs cleanly
-const visibleCategoryIds = visibleCategories.map((cat: any) => 
-  typeof cat === 'string' ? cat : cat.id
-);
+// 3. Exact matching filter for Nominees & Stats
+const visibleCategorySet = new Set<string>(visibleCategories);
 
-// Count active nominees dynamically
-const activeNomineesCount = candidates.filter(c => 
-  c.isActive && visibleCategoryIds.includes(c.category)
-).length;
+const activeNomineesCount = candidates.filter(c => {
+  if (!c.isActive) return false;
+  return visibleCategorySet.has(c.category);
+}).length;
 
   const { isAuthenticated } = useAuth();
 
