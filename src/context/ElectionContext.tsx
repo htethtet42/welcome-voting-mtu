@@ -81,40 +81,62 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   });
 });
 
-// Sync Global Status & Handle Mobile Tab Focus
+// Sync election state globally from Go backend
 useEffect(() => {
-  const syncStatus = async () => {
+  const syncElection = async () => {
     try {
-      // Append timestamp query parameter to bust aggressive mobile browser caching
-      const res = await fetch(`${API_URL}/election?t=${Date.now()}`);
+      const res = await fetch(`${API_URL}/election?t=${Date.now()}`, {
+        cache: 'no-store',
+      });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          setElection(prev => ({
-            ...prev,
-            status: data.status ?? prev.status,
-            type: data.type ?? prev.type,
-            opensAt: data.opensAt ? new Date(data.opensAt) : null,
-            closesAt: data.closesAt ? new Date(data.closesAt) : null,
-          }));
-        }
+      if (!res.ok) {
+        throw new Error(`Election API returned ${res.status}`);
       }
+
+      const data = await res.json();
+
+      if (!data) return;
+
+      console.log('🌐 Global election state:', {
+        type: data.type,
+        status: data.status,
+      });
+
+      setElection(prev => {
+        const nextType = data.type ?? prev.type;
+
+        // If election type changed globally,
+        // remove stale candidate cache.
+        if (prev.type !== nextType) {
+          localStorage.removeItem('mtu_candidates_v3');
+        }
+
+        return {
+          ...prev,
+          type: nextType,
+          status: data.status ?? prev.status,
+          opensAt: data.opensAt ? new Date(data.opensAt) : null,
+          closesAt: data.closesAt ? new Date(data.closesAt) : null,
+          publishedAt: data.publishedAt
+            ? new Date(data.publishedAt)
+            : prev.publishedAt,
+        };
+      });
     } catch (err) {
-      console.error("Failed to fetch status from server:", err);
+      console.error('❌ Failed to sync global election:', err);
     }
   };
 
-  // 1. Initial execution
-  syncStatus();
+  // Initial synchronization
+  syncElection();
 
-  // 2. Poll every 3 seconds
-  const interval = setInterval(syncStatus, 3000);
+  // Keep every device synchronized
+  const interval = setInterval(syncElection, 3000);
 
-  // 3. Re-sync immediately when a mobile user returns to the tab
+  // Sync immediately when returning to the tab
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      syncStatus();
+      syncElection();
     }
   };
 
@@ -124,7 +146,7 @@ useEffect(() => {
     clearInterval(interval);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   };
-}, [API_URL]);
+}, []);
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
     const stored = load<AuditEntry[]>('mtu_audit', []);
@@ -274,27 +296,45 @@ useEffect(() => {
 
   // --- ADMIN FUNCTIONS ---
 
-  const setElectionType = useCallback(async (type: 'fresher' | 'major', actorName: string) => {
-  try {
-    await fetch(`${API_URL}/election`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true' 
-      },
-      body: JSON.stringify({ type })
-    });
-  } catch (error) {
-    console.error("Error updating election type on server:", error);
-  }
+  const setElectionType = useCallback(
+  async (type: 'fresher' | 'major', actorName: string) => {
+    try {
+      const response = await fetch(`${API_URL}/election`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+        },
+        body: JSON.stringify({ type }),
+      });
 
-  setElection(prev => {
-    const updated = { ...prev, type };
-    localStorage.setItem('mtu_election', JSON.stringify(updated));
-    return updated;
-  });
-  addAudit(actorName || 'Admin', 'ELECTION_TYPE_CHANGED', `Election type changed to ${type}`);
-}, [addAudit, API_URL]);
+      if (!response.ok) {
+        throw new Error(`Failed to update election type: ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => null);
+
+      console.log('✅ Election type updated globally:', {
+        requested: type,
+        server: data?.type,
+      });
+
+      setElection(prev => ({
+        ...prev,
+        type: data?.type ?? type,
+      }));
+
+      addAudit(
+        actorName || 'Admin',
+        'ELECTION_TYPE_CHANGED',
+        `Election type changed to ${type}`
+      );
+    } catch (error) {
+      console.error('❌ Error updating election type on server:', error);
+    }
+  },
+  [addAudit]
+);
 
     const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
     const now = new Date();
