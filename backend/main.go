@@ -48,6 +48,7 @@ type Candidate struct {
 }
 
 type ElectionStatus struct {
+	Type     string     `json:"type"`
 	Status   string     `json:"status"`
 	OpensAt  *time.Time `json:"opensAt,omitempty"`
 	ClosesAt *time.Time `json:"closesAt,omitempty"`
@@ -221,20 +222,87 @@ func ElectionHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		// GET /api/election
 		if r.Method == http.MethodGet {
 			var e ElectionStatus
-			db.QueryRow("SELECT status, opens_at, closes_at FROM election_settings WHERE id = 1").Scan(&e.Status, &e.OpensAt, &e.ClosesAt)
+
+			err := db.QueryRow(`
+				SELECT type, status, opens_at, closes_at
+				FROM election_settings
+				WHERE id = 1
+			`).Scan(
+				&e.Type,
+				&e.Status,
+				&e.OpensAt,
+				&e.ClosesAt,
+			)
+
+			if err != nil {
+				log.Printf("Election GET error: %v\n", err)
+				http.Error(w, "Failed to get election settings", http.StatusInternalServerError)
+				return
+			}
+
 			json.NewEncoder(w).Encode(e)
 			return
 		}
 
+		// PUT /api/election
 		if r.Method == http.MethodPut {
 			var e ElectionStatus
-			json.NewDecoder(r.Body).Decode(&e)
-			db.Exec("UPDATE election_settings SET status = ?, opens_at = ?, closes_at = ? WHERE id = 1", e.Status, e.OpensAt, e.ClosesAt)
-			json.NewEncoder(w).Encode(map[string]string{"message": "Election status updated"})
+
+			if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
+				http.Error(w, "Invalid request body", http.StatusBadRequest)
+				return
+			}
+
+			// Admin changed Election Type
+			if e.Type != "" {
+				_, err := db.Exec(`
+					UPDATE election_settings
+					SET type = ?
+					WHERE id = 1
+				`, e.Type)
+
+				if err != nil {
+					log.Printf("Election type update error: %v\n", err)
+					http.Error(w, "Failed to update election type", http.StatusInternalServerError)
+					return
+				}
+
+				log.Printf("Election type changed to: %s\n", e.Type)
+
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"message": "Election type updated",
+					"type":    e.Type,
+				})
+				return
+			}
+
+			// Admin changed Election Status
+			_, err := db.Exec(`
+				UPDATE election_settings
+				SET status = ?, opens_at = ?, closes_at = ?
+				WHERE id = 1
+			`, e.Status, e.OpensAt, e.ClosesAt)
+
+			if err != nil {
+				log.Printf("Election status update error: %v\n", err)
+				http.Error(w, "Failed to update election status", http.StatusInternalServerError)
+				return
+			}
+
+			log.Printf("Election status changed to: %s\n", e.Status)
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message": "Election status updated",
+				"type":    e.Type,
+				"status":  e.Status,
+			})
 			return
 		}
+
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
