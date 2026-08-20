@@ -43,7 +43,7 @@ function load<T>(key: string, fallback: T): T {
 function makeAuditEntry(actor: string, action: string, details: string): AuditEntry {
   return { id: crypto.randomUUID(), actor, action, details, timestamp: new Date() };
 }
-const API_URL = 'https://s0ywsr-ip-103-57-207-5.tunnelmole.net/api';
+const API_URL = 'https://2y4o5m-ip-103-57-207-5.tunnelmole.net/api';
 
 export function ElectionProvider({ children }: { children: ReactNode }) {
   const [election, setElection] = useState<ElectionState>(() => {
