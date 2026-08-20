@@ -78,7 +78,7 @@ func enableCORS(next http.Handler) http.Handler {
 			// Added 'Bypass-Tunnel-Reminder' to allowed headers
 			w.Header().Set(
 				"Access-Control-Allow-Headers",
-				"Content-Type, Authorization, Bypass-Tunnel-Reminder",
+				"Content-Type, Authorization, Bypass-Tunnel-Reminder , Cache-Control",
 			)
 		}
 

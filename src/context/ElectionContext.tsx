@@ -81,51 +81,37 @@ export function ElectionProvider({ children }: { children: ReactNode }) {
   });
 });
 
-// Global Sync & Mobile Re-sync Effect
+// Sync Global Status & Handle Mobile Tab Focus
 useEffect(() => {
   const syncStatus = async () => {
     try {
-      // Add cache: 'no-store' and timestamp query param to bypass aggressive mobile caching
-      const res = await fetch(`${API_URL}/election?t=${Date.now()}`, {
-        method: 'GET',
-        cache: 'no-store',
-        headers: { 'Bypass-Tunnel-Reminder': 'true' ,
-                   'Pragma': 'no-cache',
-                   'Cache-Control': 'no-cache, no-store, must-revalidate',
-        },
-      });
+      // Append timestamp query parameter to bust aggressive mobile browser caching
+      const res = await fetch(`${API_URL}/election?t=${Date.now()}`);
 
       if (res.ok) {
-          const data = await res.json();
-          if (data) {
-            setElection(prev => {
-              const updated = {
-                ...prev,
-                status: data.status ?? prev.status,
-                type: data.type ?? prev.type,
-                opensAt: data.opensAt ? new Date(data.opensAt) : null,
-                closesAt: data.closesAt ? new Date(data.closesAt) : null,
-              };
-
-              // Save synced server state directly into LocalStorage to survive mobile page reloads
-              localStorage.setItem('mtu_election', JSON.stringify(updated));
-
-              return updated;
-            });
-          }
+        const data = await res.json();
+        if (data) {
+          setElection(prev => ({
+            ...prev,
+            status: data.status ?? prev.status,
+            type: data.type ?? prev.type,
+            opensAt: data.opensAt ? new Date(data.opensAt) : null,
+            closesAt: data.closesAt ? new Date(data.closesAt) : null,
+          }));
         }
-      } catch (err) {
+      }
+    } catch (err) {
       console.error("Failed to fetch status from server:", err);
     }
   };
 
-  // 1. Initial sync execution
+  // 1. Initial execution
   syncStatus();
 
-  // 2. Poll every 3 seconds for active users
+  // 2. Poll every 3 seconds
   const interval = setInterval(syncStatus, 3000);
 
-  // 3. Force immediate fetch as soon as a mobile user returns to/unlocks the tab
+  // 3. Re-sync immediately when a mobile user returns to the tab
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
       syncStatus();
@@ -154,32 +140,6 @@ useEffect(() => {
     setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
   }, []);
 
-  // Sync Global
-  useEffect(() => {
-  const syncStatus = async () => {
-    try {
-      const res = await fetch(`${API_URL}/election`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          setElection(prev => ({
-            ...prev,
-            status: data.status ?? prev.status,
-            type: data.type ?? prev.type, // <-- Ensure type is synchronized globally
-            opensAt: data.opensAt ? new Date(data.opensAt) : null,
-            closesAt: data.closesAt ? new Date(data.closesAt) : null,
-          }));
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch status from server:", err);
-    }
-  };
-
-  syncStatus();
-  const interval = setInterval(syncStatus, 3000);
-  return () => clearInterval(interval);
-}, [API_URL]);
 
   // Sync Local Storage
   useEffect(() => { localStorage.setItem('mtu_candidates_v3', JSON.stringify(candidates)); }, [candidates]);
