@@ -39,17 +39,27 @@ export default function Landing() {
 
   console.log("Current Election Type on Mobile:", election.type);
   
-  // Checks if Major Welcome mode is active
   const isMajorWelcome = election?.type === 'major';
 
-  // Filters out popular categories ONLY when Major Welcome mode is active
-  const visibleCategories = CATEGORIES.filter(cat => {
-    if (isMajorWelcome) {
-      return cat !== 'popular_man' && cat !== 'popular_woman';
-    }
-    return true; // Shows all 6 categories in Fresher Welcome mode
-  });
-  const activeNomineesCount = candidates.filter(c => c.isActive && visibleCategories.includes(c.category as any)).length;
+// Filter out popular categories when Major Welcome mode is active
+const visibleCategories = CATEGORIES.filter((cat: any) => {
+  const categoryId = typeof cat === 'string' ? cat : cat.id;
+
+  if (isMajorWelcome) {
+    return categoryId !== 'popular_man' && categoryId !== 'popular_woman' && categoryId !== 'popular';
+  }
+  return true;
+});
+
+// Extract string IDs cleanly
+const visibleCategoryIds = visibleCategories.map((cat: any) => 
+  typeof cat === 'string' ? cat : cat.id
+);
+
+// Count active nominees dynamically
+const activeNomineesCount = candidates.filter(c => 
+  c.isActive && visibleCategoryIds.includes(c.category)
+).length;
 
   const { isAuthenticated } = useAuth();
 

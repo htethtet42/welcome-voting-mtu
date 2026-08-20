@@ -156,13 +156,20 @@ useEffect(() => {
         const res = await fetch(`${API_URL}/election`);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.status) {
-            setElection(prev => ({
-              ...prev,
-              status: data.status,
-              opensAt: data.opensAt ? new Date(data.opensAt) : null,
-              closesAt: data.closesAt ? new Date(data.closesAt) : null,
-            }));
+          if (data) {
+            setElection(prev => {
+              // If election type changed from what was stored in localStorage
+              if (prev.type && prev.type !== data.type) {
+                localStorage.removeItem('mtu_candidates_v3'); // Force fresh fetch of candidates
+              }
+              return {
+                ...prev,
+                status: data.status ?? prev.status,
+                type: data.type ?? prev.type,
+                opensAt: data.opensAt ? new Date(data.opensAt) : null,
+                closesAt: data.closesAt ? new Date(data.closesAt) : null,
+              };
+            });
           }
         }
       } catch (err) {
