@@ -40,14 +40,12 @@ export default function Landing() {
   // Checks if Major Welcome mode is active
   const isMajorWelcome = election?.type === 'major';
 
-  // Filters out BOTH popular categories when Major Welcome is active
+  // Filters out popular categories ONLY when Major Welcome mode is active
   const visibleCategories = CATEGORIES.filter(cat => {
-    const catId = typeof cat === 'string' ? cat : (cat as any).id;
-    
-    if (isMajorWelcome && (catId === 'popular_man' || catId === 'popular_woman' || catId === 'popular')) {
-      return false;
+    if (isMajorWelcome) {
+      return cat !== 'popular_man' && cat !== 'popular_woman';
     }
-    return true;
+    return true; // Shows all 6 categories in Fresher Welcome mode
   });
   const activeNomineesCount = candidates.filter(c => c.isActive && visibleCategories.includes(c.category as any)).length;
 
