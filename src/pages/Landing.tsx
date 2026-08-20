@@ -213,59 +213,57 @@ const activeNomineesCount = candidates.filter(c => {
           <h2 className="font-display text-4xl sm:text-5xl font-bold" style={{ color: textPrimary }}>Select a Category</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-          {visibleCategories.map(cat => {
-            const meta = CATEGORY_META[cat] || DEFAULT_META;
-            const count = candidates.filter(c => {
-              if (!c.isActive) return false;
+          {/* Adding key={election?.type} forces React to immediately re-render mobile DOM on context update */}
+          <div key={election?.type || 'default'} className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            {visibleCategories.map(cat => {
+              const meta = CATEGORY_META[cat] || DEFAULT_META;
+              const count = candidates.filter(c => {
+                if (!c.isActive) return false;
+                if (c.category === cat) return true;
+                if ((c.category as string) === 'popular') {
+                  if (cat === 'popular_man') return c.id.includes('man') || (c as any).gender === 'male';
+                  if (cat === 'popular_woman') return c.id.includes('woman') || (c as any).gender === 'female';
+                }
+                return false;
+              }).length;
 
-              // Exact match
-              if (c.category === cat) return true;
-              
-              // Cast c.category as string to check legacy data safely
-              if ((c.category as string) === 'popular') {
-                if (cat === 'popular_man') return c.id.includes('man') || (c as any).gender === 'male';
-                if (cat === 'popular_woman') return c.id.includes('woman') || (c as any).gender === 'female';
-              }
+      const profileImage = CATEGORY_PROFILE_IMAGES[cat];
 
-              return false;
-            }).length;
-            const profileImage = CATEGORY_PROFILE_IMAGES[cat];
-            return (
-              <Link
-                key={cat}
-                to={election.status === 'open' ? (isAuthenticated ? `/vote?category=${cat}` : '/login') : '/results'}
-                className="group relative overflow-hidden rounded-3xl border p-8 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 flex items-center gap-6"
-                style={{ background: cardBg, borderColor: meta.borderColor }}
-              >
-                <div className="absolute -inset-4 opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-2xl" style={{ background: meta.color }}></div>
-                
-                {profileImage && (
-                  <div className="relative shrink-0">
-                    <div className="absolute inset-0 rounded-full blur-md opacity-50 transition-transform duration-500 group-hover:scale-110" style={{ background: meta.color }}></div>
-                    <img src={profileImage} alt={meta.label} className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 transition-transform duration-500 group-hover:scale-105" style={{ borderColor: bg }} />
-                  </div>
-                )}
-                
-                <div className="flex-1 relative z-10">
-                  <h3 className="font-display font-bold text-3xl mb-2 transition-colors" style={{ color: textPrimary }}>
-                    {meta.label}
-                  </h3>
-                  <p className="text-sm leading-relaxed mb-4 line-clamp-2" style={{ color: textMuted }}>{meta.description}</p>
-                  <div className="flex items-center justify-between mt-auto">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium" style={{ background: `${meta.color}15`, color: meta.color }}>
-                      {count} Nominees
-                    </span>
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 group-hover:bg-[#D4AF37] group-hover:text-[#0A0F1D]" style={{ background: border, color: textPrimary }}>
-                      <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+      return (
+        <Link
+          key={cat}
+          to={election.status === 'open' ? (isAuthenticated ? `/vote?category=${cat}` : '/login') : '/results'}
+          className="group relative overflow-hidden rounded-3xl border p-8 transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 flex items-center gap-6"
+          style={{ background: cardBg, borderColor: meta.borderColor }}
+        >
+          <div className="absolute -inset-4 opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-2xl" style={{ background: meta.color }}></div>
+          
+          {profileImage && (
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-full blur-md opacity-50 transition-transform duration-500 group-hover:scale-110" style={{ background: meta.color }}></div>
+              <img src={profileImage} alt={meta.label} className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 transition-transform duration-500 group-hover:scale-105" style={{ borderColor: bg }} />
+            </div>
+          )}
+          
+          <div className="flex-1 relative z-10">
+            <h3 className="font-display font-bold text-3xl mb-2 transition-colors" style={{ color: textPrimary }}>
+              {meta.label}
+            </h3>
+            <p className="text-sm leading-relaxed mb-4 line-clamp-2" style={{ color: textMuted }}>{meta.description}</p>
+            <div className="flex items-center justify-between mt-auto">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-medium" style={{ background: `${meta.color}15`, color: meta.color }}>
+                {count} Nominees
+              </span>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 group-hover:bg-[#D4AF37] group-hover:text-[#0A0F1D]" style={{ background: border, color: textPrimary }}>
+                <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+              </div>
+            </div>
+          </div>
+        </Link>
+      );
+    })}
+  </div>
+</section>
 
       {/* Official Contenders Section */}
       <section className="py-24 border-t relative overflow-hidden" style={{ background: darkMode ? '#0E131F' : '#FFFFFF', borderColor: border }}>
