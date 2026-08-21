@@ -114,7 +114,7 @@ smart: {
 },
 
 popular_man: {
-  label: 'Popular',
+  label: 'Mr.Popular',
   color: '#e91111',
   bgColor: 'rgba(245, 59, 59, 0.12)',
   borderColor: 'rgba(175, 8, 8, 0.3)',
@@ -124,7 +124,7 @@ popular_man: {
 },
 
 popular_woman: {
-  label: 'Popular',
+  label: 'Miss Popular',
   color: '#c93fc9',
   bgColor: 'rgba(164, 48, 182, 0.12)',
   borderColor: 'rgba(202, 13, 231, 0.3)',

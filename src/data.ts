@@ -247,7 +247,7 @@ export const LIVESTREAM_CHAT = [
   { name: 'Aye M.', msg: 'This competition is amazing! 🔥', time: '18:02' },
   { name: 'Ko Ko', msg: 'Emmanuel for King! 👑', time: '18:03' },
   { name: 'Su Su', msg: 'Abena deserves Queen all day!', time: '18:04' },
-  { name: 'Admin', msg: '📢 Voting closes July 25 at midnight!', time: '18:05' },
+  { name: 'Admin', msg: '📢 Voting closes September 2 at midnight!', time: '18:05' },
   { name: 'Thurein', msg: 'Best event MTU has done 🙌', time: '18:06' },
   { name: 'Phyu', msg: 'Priscilla is so talented 💪', time: '18:07' },
   { name: 'Zaw', msg: 'MTU representing 🇲🇲', time: '18:08' },
