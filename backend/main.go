@@ -204,14 +204,71 @@ func CandidatesHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		if r.Method == http.MethodPost {
+		if r.Method == http.MethodPut {
 			var c Candidate
-			json.NewDecoder(r.Body).Decode(&c)
-			c.ID = c.Category + "-" + uuid.New().String()[:8]
 
-			db.Exec(`INSERT INTO candidates (id, name, nickname, department, academic_year, category, bio, talent, photo, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				c.ID, c.Name, c.Nickname, c.Department, c.Year, c.Category, c.Bio, c.Talent, c.Photo, c.IsActive)
+			if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+				http.Error(w, "Invalid candidate data", http.StatusBadRequest)
+				return
+			}
 
+			if c.ID == "" {
+				http.Error(w, "Candidate ID is required", http.StatusBadRequest)
+				return
+			}
+
+			result, err := db.Exec(`
+				UPDATE candidates
+				SET
+					name = ?,
+					nickname = ?,
+					department = ?,
+					academic_year = ?,
+					category = ?,
+					bio = ?,
+					talent = ?,
+					photo = ?,
+					is_active = ?
+				WHERE id = ?
+			`,
+				c.Name,
+				c.Nickname,
+				c.Department,
+				c.Year,
+				c.Category,
+				c.Bio,
+				c.Talent,
+				c.Photo,
+				c.IsActive,
+				c.ID,
+			)
+
+			if err != nil {
+				log.Printf("Candidate update error: %v\n", err)
+				http.Error(w, "Failed to update candidate", http.StatusInternalServerError)
+				return
+			}
+
+			rowsAffected, err := result.RowsAffected()
+			if err != nil {
+				log.Printf("Rows affected error: %v\n", err)
+				http.Error(w, "Failed to verify candidate update", http.StatusInternalServerError)
+				return
+			}
+
+			if rowsAffected == 0 {
+				http.Error(w, "Candidate not found", http.StatusNotFound)
+				return
+			}
+
+			log.Printf(
+				"Candidate updated: %s (%s), active=%t\n",
+				c.Name,
+				c.Category,
+				c.IsActive,
+			)
+
+			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(c)
 			return
 		}

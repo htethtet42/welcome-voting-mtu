@@ -1,5 +1,18 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { Category, ElectionState, AuditEntry, Candidate, VoteRecord } from '../types';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from 'react';
+import type {
+  Category,
+  ElectionState,
+  AuditEntry,
+  Candidate,
+  VoteRecord,
+} from '../types';
 import { INITIAL_ELECTION, CANDIDATES as SEED_CANDIDATES } from '../data';
 
 interface ElectionContextType {
@@ -11,17 +24,47 @@ interface ElectionContextType {
   darkMode: boolean;
 
   // Voter actions (Database)
-  castVote: (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => Promise<'success' | 'already_voted' | 'closed' | 'not_eligible' | 'error'>;
+  castVote: (
+    candidateId: string,
+    category: Category,
+    voter: { id: string; name: string; email: string }
+  ) => Promise<
+    'success' | 'already_voted' | 'closed' | 'not_eligible' | 'error'
+  >;
+
   fetchGlobalLedger: () => Promise<void>;
 
   // Admin actions
-  setElectionType: (type: 'fresher' | 'major', actorName: string) => Promise<void>;
-  openElection: (actorName: string, autoCloseMinutes?: number) => void;
-  closeElection: (actorName: string) => void;
-  publishResults: (actorName: string) => void;
-  addCandidate: (candidate: Omit<Candidate, 'id'>, actorName: string) => void;
-  updateCandidate: (id: string, updates: Partial<Candidate>, actorName: string) => void;
-  toggleCandidateActive: (id: string, actorName: string) => void;
+  setElectionType: (
+    type: 'fresher' | 'major',
+    actorName: string
+  ) => Promise<void>;
+
+  openElection: (
+    actorName: string,
+    autoCloseMinutes?: number
+  ) => Promise<void>;
+
+  closeElection: (actorName: string) => Promise<void>;
+
+  publishResults: (actorName: string) => Promise<void>;
+
+  addCandidate: (
+    candidate: Omit<Candidate, 'id'>,
+    actorName: string
+  ) => Promise<void>;
+
+  updateCandidate: (
+    id: string,
+    updates: Partial<Candidate>,
+    actorName: string
+  ) => Promise<void>;
+
+  toggleCandidateActive: (
+    id: string,
+    actorName: string
+  ) => Promise<void>;
+
   resetVotes: (actorName: string) => void;
 
   toggleDarkMode: () => void;
@@ -37,409 +80,1089 @@ function load<T>(key: string, fallback: T): T {
   try {
     const s = localStorage.getItem(key);
     return s ? JSON.parse(s) : fallback;
-  } catch { return fallback; }
+  } catch {
+    return fallback;
+  }
 }
 
-function makeAuditEntry(actor: string, action: string, details: string): AuditEntry {
-  return { id: crypto.randomUUID(), actor, action, details, timestamp: new Date() };
+function makeAuditEntry(
+  actor: string,
+  action: string,
+  details: string
+): AuditEntry {
+  return {
+    id: crypto.randomUUID(),
+    actor,
+    action,
+    details,
+    timestamp: new Date(),
+  };
 }
-const API_URL = 'https://encxuf-ip-116-206-123-5.tunnelmole.net/api';
 
-export function ElectionProvider({ children }: { children: ReactNode }) {
+const API_URL =
+  'https://encxuf-ip-116-206-123-5.tunnelmole.net/api';
+
+/**
+ * Normalize candidate category values coming from either
+ * the old local seed data or MySQL.
+ */
+function normalizeCandidate(candidate: Candidate): Candidate {
+  let updatedCat = candidate.category;
+
+  // Normalize legacy "popular" category
+  if ((candidate as any).category === 'popular') {
+    const isFemale =
+      (candidate as any).gender === 'female' ||
+      candidate.id.toLowerCase().includes('woman') ||
+      candidate.id.toLowerCase().includes('female');
+
+    updatedCat = isFemale ? 'popular_woman' : 'popular_man';
+  }
+
+  // Normalize legacy IDs
+  if (candidate.id.startsWith('smart-')) {
+    updatedCat = 'smart';
+  }
+
+  if (candidate.id.startsWith('style-')) {
+    updatedCat = 'style';
+  }
+
+  return {
+    ...candidate,
+    category: updatedCat as Category,
+  };
+}
+
+export function ElectionProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  // ---------------------------------------------------------
+  // ELECTION STATE
+  // ---------------------------------------------------------
+
   const [election, setElection] = useState<ElectionState>(() => {
-    const stored = load<ElectionState | null>('mtu_election_v3', null);
+    const stored = load<ElectionState | null>(
+      'mtu_election_v3',
+      null
+    );
+
     if (!stored) return INITIAL_ELECTION;
-    return { 
-      ...stored, 
-      opensAt: stored.opensAt ? new Date(stored.opensAt) : null, 
-      closesAt: stored.closesAt ? new Date(stored.closesAt) : null, 
-      publishedAt: stored.publishedAt ? new Date(stored.publishedAt) : null 
+
+    return {
+      ...stored,
+      opensAt: stored.opensAt
+        ? new Date(stored.opensAt)
+        : null,
+      closesAt: stored.closesAt
+        ? new Date(stored.closesAt)
+        : null,
+      publishedAt: stored.publishedAt
+        ? new Date(stored.publishedAt)
+        : null,
     };
   });
 
-  // 1. Initialize candidate state using 'mtu_candidates_v3'
+  // ---------------------------------------------------------
+  // CANDIDATES
+  // ---------------------------------------------------------
+
   const [candidates, setCandidates] = useState<Candidate[]>(() => {
-  const loaded = load<Candidate[]>('mtu_candidates_v3', SEED_CANDIDATES);
+    const loaded = load<Candidate[]>(
+      'mtu_candidates_v3',
+      SEED_CANDIDATES
+    );
 
-  return loaded.map((candidate) => {
-    let updatedCat = candidate.category;
-
-    // Normalize legacy 'popular' categories
-    if ((candidate as any).category === 'popular') {
-      const isFemale =
-        (candidate as any).gender === 'female' ||
-        candidate.id.toLowerCase().includes('woman') ||
-        candidate.id.toLowerCase().includes('female');
-
-      updatedCat = isFemale ? 'popular_woman' : 'popular_man';
-    }
-
-    if (candidate.id.startsWith('smart-')) updatedCat = 'smart';
-    if (candidate.id.startsWith('style-')) updatedCat = 'style';
-
-    return { ...candidate, category: updatedCat as Category };
+    return loaded.map(normalizeCandidate);
   });
-});
 
-// Sync election state globally from Go backend
-useEffect(() => {
-  const syncElection = async () => {
-    try {
-      const res = await fetch(`${API_URL}/election?t=${Date.now()}`, {
-        cache: 'no-store',
-      });
-
-      if (!res.ok) {
-        throw new Error(`Election API returned ${res.status}`);
-      }
-
-      const data = await res.json();
-
-      if (!data) return;
-
-      console.log('🌐 Global election state:', {
-        type: data.type,
-        status: data.status,
-      });
-
-      setElection(prev => {
-        const nextType = data.type ?? prev.type;
-
-        // If election type changed globally,
-        // remove stale candidate cache.
-        if (prev.type !== nextType) {
-          localStorage.removeItem('mtu_candidates_v3');
-        }
-
-        return {
-          ...prev,
-          type: nextType,
-          status: data.status ?? prev.status,
-          opensAt: data.opensAt ? new Date(data.opensAt) : null,
-          closesAt: data.closesAt ? new Date(data.closesAt) : null,
-          publishedAt: data.publishedAt
-            ? new Date(data.publishedAt)
-            : prev.publishedAt,
-        };
-      });
-    } catch (err) {
-      console.error('❌ Failed to sync global election:', err);
-    }
-  };
-
-  // Initial synchronization
-  syncElection();
-
-  // Keep every device synchronized
-  const interval = setInterval(syncElection, 3000);
-
-  // Sync immediately when returning to the tab
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-      syncElection();
-    }
-  };
-
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-
-  return () => {
-    clearInterval(interval);
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-  };
-}, []);
+  // ---------------------------------------------------------
+  // OTHER STATE
+  // ---------------------------------------------------------
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
     const stored = load<AuditEntry[]>('mtu_audit', []);
-    return stored.map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+
+    return stored.map((e) => ({
+      ...e,
+      timestamp: new Date(e.timestamp),
+    }));
   });
 
-  const [darkMode, setDarkMode] = useState<boolean>(() => load('mtu_dark', true));
+  const [darkMode, setDarkMode] = useState<boolean>(() =>
+    load('mtu_dark', true)
+  );
+
   const [voteRecords, setVoteRecords] = useState<VoteRecord[]>([]);
-  const [voteCounts, setVoteCounts] = useState<Record<string, number>>({});
+  const [voteCounts, setVoteCounts] = useState<
+    Record<string, number>
+  >({});
 
+  // ---------------------------------------------------------
+  // AUDIT
+  // ---------------------------------------------------------
 
-  const addAudit = useCallback((actor: string, action: string, details: string) => {
-    setAuditLog(prev => [makeAuditEntry(actor, action, details), ...prev].slice(0, 200));
-  }, []);
+  const addAudit = useCallback(
+    (actor: string, action: string, details: string) => {
+      setAuditLog((prev) =>
+        [
+          makeAuditEntry(actor, action, details),
+          ...prev,
+        ].slice(0, 200)
+      );
+    },
+    []
+  );
 
+  // ---------------------------------------------------------
+  // LOCAL STORAGE
+  // ---------------------------------------------------------
 
-  // Sync Local Storage
-  useEffect(() => { localStorage.setItem('mtu_candidates_v3', JSON.stringify(candidates)); }, [candidates]);
-  useEffect(() => { localStorage.setItem('mtu_audit', JSON.stringify(auditLog)); }, [auditLog]);
   useEffect(() => {
-    localStorage.setItem('mtu_dark', JSON.stringify(darkMode));
-    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem(
+      'mtu_candidates_v3',
+      JSON.stringify(candidates)
+    );
+  }, [candidates]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      'mtu_audit',
+      JSON.stringify(auditLog)
+    );
+  }, [auditLog]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      'mtu_dark',
+      JSON.stringify(darkMode)
+    );
+
+    document.documentElement.classList.toggle(
+      'dark',
+      darkMode
+    );
   }, [darkMode]);
 
-  // Sync status from Go database every 3 seconds
+  // =========================================================
+  // GLOBAL ELECTION SYNCHRONIZATION
+  // =========================================================
+
   useEffect(() => {
-    const syncStatus = async () => {
+    const syncElection = async () => {
       try {
-        const res = await fetch(`${API_URL}/election`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data) {
-            setElection(prev => {
-              // If election type changed from what was stored in localStorage
-              if (prev.type && prev.type !== data.type) {
-                localStorage.removeItem('mtu_candidates_v3'); // Force fresh fetch of candidates
-              }
-              return {
-                ...prev,
-                status: data.status ?? prev.status,
-                type: data.type ?? prev.type,
-                opensAt: data.opensAt ? new Date(data.opensAt) : null,
-                closesAt: data.closesAt ? new Date(data.closesAt) : null,
-              };
-            });
+        const response = await fetch(
+          `${API_URL}/election?t=${Date.now()}`,
+          {
+            cache: 'no-store',
           }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Election API returned ${response.status}`
+          );
         }
-      } catch (err) {
-        console.error("Failed to fetch status from server:", err);
+
+        const data = await response.json();
+
+        if (!data) return;
+
+        setElection((prev) => ({
+          ...prev,
+          type: data.type ?? prev.type,
+          status: data.status ?? prev.status,
+          opensAt: data.opensAt
+            ? new Date(data.opensAt)
+            : null,
+          closesAt: data.closesAt
+            ? new Date(data.closesAt)
+            : null,
+          publishedAt: data.publishedAt
+            ? new Date(data.publishedAt)
+            : prev.publishedAt,
+        }));
+      } catch (error) {
+        console.error(
+          '❌ Failed to sync global election:',
+          error
+        );
       }
     };
 
-    syncStatus();
-    const interval = setInterval(syncStatus, 3000);
-    return () => clearInterval(interval);
-  }, [API_URL]);
+    syncElection();
 
-  // Auto-close interval checker
+    const interval = setInterval(
+      syncElection,
+      3000
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncElection();
+      }
+    };
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
+    return () => {
+      clearInterval(interval);
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
+    };
+  }, []);
+
+  // =========================================================
+  // GLOBAL CANDIDATE SYNCHRONIZATION
+  // =========================================================
+
+  const fetchGlobalCandidates = useCallback(
+    async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/candidates?t=${Date.now()}`,
+          {
+            cache: 'no-store',
+            headers: {
+              'Bypass-Tunnel-Reminder': 'true',
+              'Cache-Control': 'no-cache',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Candidates API returned ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data)) {
+          throw new Error(
+            'Candidates API returned invalid data'
+          );
+        }
+
+        const normalizedCandidates =
+          data.map(normalizeCandidate);
+
+        setCandidates(normalizedCandidates);
+
+        console.log(
+          '🌐 Global candidates synchronized:',
+          normalizedCandidates.length
+        );
+      } catch (error) {
+        console.error(
+          '❌ Failed to sync candidates:',
+          error
+        );
+      }
+    },
+    []
+  );
+
+  // Initial candidate synchronization + polling
+  useEffect(() => {
+    fetchGlobalCandidates();
+
+    // Synchronize every 3 seconds
+    const interval = setInterval(
+      fetchGlobalCandidates,
+      3000
+    );
+
+    // Synchronize when returning to tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchGlobalCandidates();
+      }
+    };
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
+    return () => {
+      clearInterval(interval);
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
+    };
+  }, [fetchGlobalCandidates]);
+
+  // =========================================================
+  // AUTO CLOSE
+  // =========================================================
+
   useEffect(() => {
     const check = () => {
-      if (election.status === 'open' && election.closesAt && new Date() > election.closesAt) {
-        setElection(e => ({ ...e, status: 'closed' }));
-        addAudit('System', 'ELECTION_AUTO_CLOSED', 'Election auto-closed at scheduled time');
+      if (
+        election.status === 'open' &&
+        election.closesAt &&
+        new Date() > election.closesAt
+      ) {
+        setElection((e) => ({
+          ...e,
+          status: 'closed',
+        }));
+
+        addAudit(
+          'System',
+          'ELECTION_AUTO_CLOSED',
+          'Election auto-closed at scheduled time'
+        );
       }
     };
-    check();
-    const id = setInterval(check, 1000);
-    return () => clearInterval(id);
-  }, [election.status, election.closesAt, addAudit]);
 
-  // --- DATABASE FUNCTIONS ---
+    check();
+
+    const id = setInterval(check, 1000);
+
+    return () => clearInterval(id);
+  }, [
+    election.status,
+    election.closesAt,
+    addAudit,
+  ]);
+
+  // =========================================================
+  // DATABASE FUNCTIONS - BALLOTS
+  // =========================================================
 
   const fetchGlobalLedger = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/ballots`);
-      if (!response.ok) throw new Error('Failed to fetch ballots');
-      
+      const response = await fetch(
+        `${API_URL}/ballots`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Bypass-Tunnel-Reminder': 'true',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          'Failed to fetch ballots'
+        );
+      }
+
       const data = await response.json();
-      const formattedData: VoteRecord[] = (data || []).map((record: any) => ({
+
+      const formattedData: VoteRecord[] = (
+        data || []
+      ).map((record: any) => ({
         ...record,
-        createdAt: new Date(record.createdAt)
+        createdAt: new Date(record.createdAt),
       }));
-      
+
       setVoteRecords(formattedData);
 
       const counts: Record<string, number> = {};
-      formattedData.forEach(record => {
-        counts[record.candidateId] = (counts[record.candidateId] || 0) + 1;
+
+      formattedData.forEach((record) => {
+        counts[record.candidateId] =
+          (counts[record.candidateId] || 0) + 1;
       });
+
       setVoteCounts(counts);
-
     } catch (error) {
-      console.error("Error loading global ballots:", error);
+      console.error(
+        '❌ Error loading global ballots:',
+        error
+      );
     }
-  }, [API_URL]);
+  }, []);
 
-  // Fetch vote ledger globally for all clients & poll every 5s
+  // Poll ballots every 5 seconds
   useEffect(() => {
     fetchGlobalLedger();
-    const interval = setInterval(fetchGlobalLedger, 5000);
+
+    const interval = setInterval(
+      fetchGlobalLedger,
+      5000
+    );
+
     return () => clearInterval(interval);
   }, [fetchGlobalLedger]);
 
-  const castVote = useCallback(async (candidateId: string, category: Category, voter: { id: string; name: string; email: string }) => {
-    if (election.status !== 'open') return 'closed';
-    const candidate = candidates.find(c => c.id === candidateId && c.isActive);
-    if (!candidate || candidate.category !== category) return 'not_eligible';
+  // =========================================================
+  // CAST VOTE
+  // =========================================================
 
-    try {
-      const response = await fetch(`${API_URL}/votes`, {
-        method: 'POST',
-        headers: {
-        'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+  const castVote = useCallback(
+    async (
+      candidateId: string,
+      category: Category,
+      voter: {
+        id: string;
+        name: string;
+        email: string;
+      }
+    ) => {
+      if (election.status !== 'open') {
+        return 'closed';
+      }
+
+      const candidate = candidates.find(
+        (c) =>
+          c.id === candidateId &&
+          c.isActive
+      );
+
+      if (
+        !candidate ||
+        candidate.category !== category
+      ) {
+        return 'not_eligible';
+      }
+
+      try {
+        const response = await fetch(
+          `${API_URL}/votes`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify({
+              voterId: voter.id,
+              voterEmail: voter.email,
+              voterName: voter.name,
+              candidateId,
+              category,
+            }),
+          }
+        );
+
+        if (response.status === 409) {
+          return 'already_voted';
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            'Database insertion failed'
+          );
+        }
+
+        const newRecord: VoteRecord = {
+          id: crypto.randomUUID(),
           voterId: voter.id,
           voterEmail: voter.email,
           voterName: voter.name,
-          candidateId: candidateId,
-          category: category
-        }),
-      });
+          candidateId,
+          category,
+          createdAt: new Date(),
+        };
 
-      if (response.status === 409) return 'already_voted';
-      if (!response.ok) throw new Error('Database insertion failed');
+        setVoteRecords((prev) => [
+          newRecord,
+          ...prev,
+        ]);
 
-      const newRecord: VoteRecord = {
-        id: crypto.randomUUID(),
-        voterId: voter.id,
-        voterEmail: voter.email,
-        voterName: voter.name,
-        candidateId: candidateId,
-        category: category,
-        createdAt: new Date()
-      };
+        setVoteCounts((prev) => ({
+          ...prev,
+          [candidateId]:
+            (prev[candidateId] || 0) + 1,
+        }));
 
-      setVoteRecords(prev => [newRecord, ...prev]);
-      setVoteCounts(prev => ({ ...prev, [candidateId]: (prev[candidateId] || 0) + 1 }));
-      addAudit(voter.name, 'VOTE_CAST', `Cast a secure ${category} ballot`);
-      
-      return 'success';
-    } catch (error) {
-      console.error("Error casting vote:", error);
-      return 'error';
-    }
-  }, [election.status, candidates, addAudit, API_URL]);
+        addAudit(
+          voter.name,
+          'VOTE_CAST',
+          `Cast a secure ${category} ballot`
+        );
 
-  // --- ADMIN FUNCTIONS ---
+        return 'success';
+      } catch (error) {
+        console.error(
+          '❌ Error casting vote:',
+          error
+        );
+
+        return 'error';
+      }
+    },
+    [
+      election.status,
+      candidates,
+      addAudit,
+    ]
+  );
+
+  // =========================================================
+  // ADMIN - ELECTION TYPE
+  // =========================================================
 
   const setElectionType = useCallback(
-  async (type: 'fresher' | 'major', actorName: string) => {
-    try {
-      const response = await fetch(`${API_URL}/election`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true',
-        },
-        body: JSON.stringify({ type }),
-      });
+    async (
+      type: 'fresher' | 'major',
+      actorName: string
+    ) => {
+      try {
+        const response = await fetch(
+          `${API_URL}/election`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify({ type }),
+          }
+        );
 
-      if (!response.ok) {
-        throw new Error(`Failed to update election type: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to update election type: ${response.status}`
+          );
+        }
+
+        const data =
+          await response.json().catch(
+            () => null
+          );
+
+        setElection((prev) => ({
+          ...prev,
+          type: data?.type ?? type,
+        }));
+
+        addAudit(
+          actorName || 'Admin',
+          'ELECTION_TYPE_CHANGED',
+          `Election type changed to ${type}`
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error updating election type:',
+          error
+        );
       }
+    },
+    [addAudit]
+  );
 
-      const data = await response.json().catch(() => null);
+  // =========================================================
+  // ADMIN - OPEN ELECTION
+  // =========================================================
 
-      console.log('✅ Election type updated globally:', {
-        requested: type,
-        server: data?.type,
-      });
+  const openElection = useCallback(
+    async (
+      actorName: string,
+      autoCloseMinutes?: number
+    ) => {
+      const now = new Date();
 
-      setElection(prev => ({
-        ...prev,
-        type: data?.type ?? type,
-      }));
+      const closesAt = autoCloseMinutes
+        ? new Date(
+            now.getTime() +
+              autoCloseMinutes * 60000
+          )
+        : null;
+
+      try {
+        const response = await fetch(
+          `${API_URL}/election`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify({
+              status: 'open',
+              opensAt: now.toISOString(),
+              closesAt:
+                closesAt?.toISOString() ?? null,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to open election: ${response.status}`
+          );
+        }
+
+        setElection((e) => ({
+          ...e,
+          status: 'open',
+          opensAt: now,
+          closesAt,
+        }));
+
+        const closesAtText =
+          autoCloseMinutes
+            ? ` (Auto-closes in ${autoCloseMinutes} mins)`
+            : '';
+
+        addAudit(
+          actorName || 'Admin',
+          'ELECTION_OPENED',
+          `Election opened${closesAtText}`
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error opening election:',
+          error
+        );
+      }
+    },
+    [addAudit]
+  );
+
+  // =========================================================
+  // ADMIN - CLOSE ELECTION
+  // =========================================================
+
+  const closeElection = useCallback(
+    async (actorName: string) => {
+      try {
+        const response = await fetch(
+          `${API_URL}/election`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify({
+              status: 'closed',
+              closesAt: new Date().toISOString(),
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to close election: ${response.status}`
+          );
+        }
+
+        setElection((e) => ({
+          ...e,
+          status: 'closed',
+          closesAt: new Date(),
+        }));
+
+        addAudit(
+          actorName || 'Admin',
+          'ELECTION_CLOSED',
+          'Election closed — computing winners'
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error closing election:',
+          error
+        );
+      }
+    },
+    [addAudit]
+  );
+
+  // =========================================================
+  // ADMIN - PUBLISH RESULTS
+  // =========================================================
+
+  const publishResults = useCallback(
+    async (actorName: string) => {
+      try {
+        const response = await fetch(
+          `${API_URL}/election`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify({
+              status: 'published',
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to publish election: ${response.status}`
+          );
+        }
+
+        setElection((e) => ({
+          ...e,
+          status: 'published',
+          publishedAt: new Date(),
+        }));
+
+        addAudit(
+          actorName || 'Admin',
+          'RESULTS_PUBLISHED',
+          'Results published to public'
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error publishing election:',
+          error
+        );
+      }
+    },
+    [addAudit]
+  );
+
+  // =========================================================
+  // ADMIN - ADD CANDIDATE
+  // =========================================================
+
+  const addCandidate = useCallback(
+    async (
+      candidate: Omit<Candidate, 'id'>,
+      actorName: string
+    ) => {
+      try {
+        const response = await fetch(
+          `${API_URL}/candidates`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify(candidate),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to add candidate: ${response.status}`
+          );
+        }
+
+        const newCandidate: Candidate =
+          await response.json();
+
+        const normalizedCandidate =
+          normalizeCandidate(newCandidate);
+
+        setCandidates((prev) => {
+          // Avoid duplicate candidate if polling
+          // already inserted it
+          const exists = prev.some(
+            (c) => c.id === normalizedCandidate.id
+          );
+
+          if (exists) {
+            return prev;
+          }
+
+          return [
+            ...prev,
+            normalizedCandidate,
+          ];
+        });
+
+        addAudit(
+          actorName || 'Admin',
+          'CANDIDATE_ADDED',
+          `Added candidate "${normalizedCandidate.name}" (${normalizedCandidate.category})`
+        );
+
+        console.log(
+          '✅ Candidate added globally:',
+          normalizedCandidate
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error adding candidate:',
+          error
+        );
+
+        throw error;
+      }
+    },
+    [addAudit]
+  );
+
+  // =========================================================
+  // ADMIN - EDIT CANDIDATE
+  // =========================================================
+
+  const updateCandidate = useCallback(
+    async (
+      id: string,
+      updates: Partial<Candidate>,
+      actorName: string
+    ) => {
+      try {
+        const existingCandidate =
+          candidates.find(
+            (candidate) => candidate.id === id
+          );
+
+        if (!existingCandidate) {
+          throw new Error(
+            `Candidate ${id} not found`
+          );
+        }
+
+        const updatedCandidate: Candidate = {
+          ...existingCandidate,
+          ...updates,
+          id,
+        };
+
+        const response = await fetch(
+          `${API_URL}/candidates`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify(
+              updatedCandidate
+            ),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to update candidate: ${response.status}`
+          );
+        }
+
+        const serverCandidate: Candidate =
+          await response.json();
+
+        const normalizedCandidate =
+          normalizeCandidate(serverCandidate);
+
+        setCandidates((prev) =>
+          prev.map((candidate) =>
+            candidate.id === id
+              ? normalizedCandidate
+              : candidate
+          )
+        );
+
+        addAudit(
+          actorName || 'Admin',
+          'CANDIDATE_UPDATED',
+          `Updated candidate "${normalizedCandidate.name}"`
+        );
+
+        console.log(
+          '✅ Candidate updated globally:',
+          normalizedCandidate
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error updating candidate:',
+          error
+        );
+
+        throw error;
+      }
+    },
+    [candidates, addAudit]
+  );
+
+  // =========================================================
+  // ADMIN - ACTIVATE / DEACTIVATE CANDIDATE
+  // =========================================================
+
+  const toggleCandidateActive = useCallback(
+    async (
+      id: string,
+      actorName: string
+    ) => {
+      try {
+        const existingCandidate =
+          candidates.find(
+            (candidate) => candidate.id === id
+          );
+
+        if (!existingCandidate) {
+          throw new Error(
+            `Candidate ${id} not found`
+          );
+        }
+
+        const updatedCandidate: Candidate = {
+          ...existingCandidate,
+          isActive:
+            !existingCandidate.isActive,
+        };
+
+        const response = await fetch(
+          `${API_URL}/candidates`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Bypass-Tunnel-Reminder': 'true',
+            },
+            body: JSON.stringify(
+              updatedCandidate
+            ),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to change candidate status: ${response.status}`
+          );
+        }
+
+        const serverCandidate: Candidate =
+          await response.json();
+
+        const normalizedCandidate =
+          normalizeCandidate(serverCandidate);
+
+        setCandidates((prev) =>
+          prev.map((candidate) =>
+            candidate.id === id
+              ? normalizedCandidate
+              : candidate
+          )
+        );
+
+        addAudit(
+          actorName || 'Admin',
+          normalizedCandidate.isActive
+            ? 'CANDIDATE_ACTIVATED'
+            : 'CANDIDATE_DEACTIVATED',
+          `${
+            normalizedCandidate.isActive
+              ? 'Activated'
+              : 'Deactivated'
+          } candidate "${normalizedCandidate.name}"`
+        );
+
+        console.log(
+          '✅ Candidate status updated globally:',
+          normalizedCandidate
+        );
+      } catch (error) {
+        console.error(
+          '❌ Error changing candidate status:',
+          error
+        );
+
+        throw error;
+      }
+    },
+    [candidates, addAudit]
+  );
+
+  // =========================================================
+  // RESET VOTES
+  // =========================================================
+
+  const resetVotes = useCallback(
+    (actorName: string) => {
+      setVoteCounts({});
+      setVoteRecords([]);
 
       addAudit(
-        actorName || 'Admin',
-        'ELECTION_TYPE_CHANGED',
-        `Election type changed to ${type}`
+        actorName,
+        'VOTES_RESET',
+        'WARNING: Local vote counts reset (DB untouched)'
       );
-    } catch (error) {
-      console.error('❌ Error updating election type on server:', error);
-    }
-  },
-  [addAudit]
-);
+    },
+    [addAudit]
+  );
 
-    const openElection = useCallback(async (actorName: string, autoCloseMinutes?: number) => {
-    const now = new Date();
-    const closesAt = autoCloseMinutes ? new Date(now.getTime() + autoCloseMinutes * 60000) : null;
+  // =========================================================
+  // DARK MODE
+  // =========================================================
 
-    try {
-      await fetch(`${API_URL}/election`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true' 
-        },
-        body: JSON.stringify({ 
-          status: 'open',
-          opensAt: now.toISOString(),
-          closesAt: closesAt ? closesAt.toISOString() : null
-        })
-      });
+  const toggleDarkMode = () =>
+    setDarkMode((previous) => !previous);
 
-      setElection(e => ({ ...e, status: 'open', opensAt: now, closesAt: closesAt }));
-      const closesAtText = autoCloseMinutes ? ` (Auto-closes in ${autoCloseMinutes} mins)` : '';
-      addAudit(actorName || 'Admin', 'ELECTION_OPENED', `Election opened${closesAtText}`);
-    } catch (error) {
-      console.error("Error opening election on server:", error);
-    }
-  }, [addAudit, API_URL]);
+  // =========================================================
+  // COMPUTED
+  // =========================================================
 
-  const closeElection = useCallback(async (actorName: string) => {
-    try {
-      await fetch(`${API_URL}/election`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true' 
-        },
-        body: JSON.stringify({ status: 'closed', closesAt: new Date().toISOString() })
-      });
-    } catch (err) {
-      console.error("Error closing election on server:", err);
-    }
+  const totalVotes = Object.values(
+    voteCounts
+  ).reduce((a, b) => a + b, 0);
 
-    setElection(e => ({ ...e, status: 'closed', closesAt: new Date() }));
-    addAudit(actorName || 'Admin', 'ELECTION_CLOSED', 'Election closed — computing winners');
-  }, [addAudit, API_URL]);
+  const winners = (
+    [
+      'king',
+      'queen',
+      'style',
+      'smart',
+      'popular_man',
+      'popular_woman',
+    ] as Category[]
+  ).reduce(
+    (result, category) => {
+      result[category] =
+        candidates
+          .filter(
+            (candidate) =>
+              candidate.category === category &&
+              candidate.isActive
+          )
+          .sort(
+            (a, b) =>
+              (voteCounts[b.id] ?? 0) -
+              (voteCounts[a.id] ?? 0)
+          )[0] ?? null;
 
-  const publishResults = useCallback(async (actorName: string) => {
-    try {
-      await fetch(`${API_URL}/election`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true' 
-        },
-        body: JSON.stringify({ status: 'published' })
-      });
-    } catch (err) {
-      console.error("Error publishing election on server:", err);
-    }
+      return result;
+    },
+    {} as Record<Category, Candidate | null>
+  );
 
-    setElection(e => ({ ...e, status: 'published', publishedAt: new Date() }));
-    addAudit(actorName || 'Admin', 'RESULTS_PUBLISHED', 'Results published to public');
-  }, [addAudit, API_URL]);
-
-  const addCandidate = useCallback((candidate: Omit<Candidate, 'id'>, actorName: string) => {
-    const newC: Candidate = { ...candidate, id: `${candidate.category}-${Date.now()}` };
-    setCandidates(prev => [...prev, newC]);
-    addAudit(actorName, 'CANDIDATE_ADDED', `Added candidate "${newC.name}" (${newC.category})`);
-  }, [addAudit]);
-
-  const updateCandidate = useCallback((id: string, updates: Partial<Candidate>, actorName: string) => {
-    setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    addAudit(actorName, 'CANDIDATE_UPDATED', `Updated candidate ${id}`);
-  }, [addAudit]);
-
-  const toggleCandidateActive = useCallback((id: string, actorName: string) => {
-    setCandidates(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      addAudit(actorName, c.isActive ? 'CANDIDATE_DEACTIVATED' : 'CANDIDATE_ACTIVATED', `${c.isActive ? 'Deactivated' : 'Activated'} candidate "${c.name}"`);
-      return { ...c, isActive: !c.isActive };
-    }));
-  }, [addAudit]);
-
-  const resetVotes = useCallback((actorName: string) => {
-    setVoteCounts({});
-    setVoteRecords([]);
-    addAudit(actorName, 'VOTES_RESET', 'WARNING: Local vote counts reset (DB untouched)');
-  }, [addAudit]);
-
-  const toggleDarkMode = () => setDarkMode(p => !p);
-
-  const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
-
-  const winners = (['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).reduce((result, category) => {
-    result[category] = candidates.filter(c => c.category === category && c.isActive).sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0))[0] ?? null;
-    return result;
-  }, {} as Record<Category, Candidate | null>);
+  // =========================================================
+  // PROVIDER
+  // =========================================================
 
   return (
-    <ElectionContext.Provider value={{
-      election, candidates, voteCounts, voteRecords, auditLog, darkMode,
-      setElectionType, castVote, fetchGlobalLedger, openElection, closeElection, publishResults,
-      addCandidate, updateCandidate, toggleCandidateActive,
-      resetVotes, toggleDarkMode,
-      totalVotes, winners,
-    }}>
+    <ElectionContext.Provider
+      value={{
+        election,
+        candidates,
+        voteCounts,
+        voteRecords,
+        auditLog,
+        darkMode,
+
+        setElectionType,
+        castVote,
+        fetchGlobalLedger,
+
+        openElection,
+        closeElection,
+        publishResults,
+
+        addCandidate,
+        updateCandidate,
+        toggleCandidateActive,
+
+        resetVotes,
+        toggleDarkMode,
+
+        totalVotes,
+        winners,
+      }}
+    >
       {children}
     </ElectionContext.Provider>
   );
@@ -447,6 +1170,12 @@ useEffect(() => {
 
 export function useElection() {
   const ctx = useContext(ElectionContext);
-  if (!ctx) throw new Error('useElection outside ElectionProvider');
+
+  if (!ctx) {
+    throw new Error(
+      'useElection outside ElectionProvider'
+    );
+  }
+
   return ctx;
 }
