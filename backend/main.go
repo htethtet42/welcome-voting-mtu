@@ -190,30 +190,177 @@ func CandidatesHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		// =====================================================
+		// GET - Get all candidates
+		// =====================================================
 		if r.Method == http.MethodGet {
-			rows, _ := db.Query("SELECT id, name, nickname, department, academic_year, category, bio, talent, photo, is_active FROM candidates")
+			rows, err := db.Query(`
+				SELECT
+					id,
+					name,
+					nickname,
+					department,
+					academic_year,
+					category,
+					bio,
+					talent,
+					photo,
+					is_active
+				FROM candidates
+				ORDER BY id
+			`)
+
+			if err != nil {
+				log.Printf("Candidate SELECT error: %v\n", err)
+				http.Error(
+					w,
+					"Failed to load candidates",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+
 			defer rows.Close()
 
-			var candidates []Candidate = []Candidate{}
+			candidates := []Candidate{}
+
 			for rows.Next() {
 				var c Candidate
-				rows.Scan(&c.ID, &c.Name, &c.Nickname, &c.Department, &c.Year, &c.Category, &c.Bio, &c.Talent, &c.Photo, &c.IsActive)
+
+				err := rows.Scan(
+					&c.ID,
+					&c.Name,
+					&c.Nickname,
+					&c.Department,
+					&c.Year,
+					&c.Category,
+					&c.Bio,
+					&c.Talent,
+					&c.Photo,
+					&c.IsActive,
+				)
+
+				if err != nil {
+					log.Printf("Candidate scan error: %v\n", err)
+					http.Error(
+						w,
+						"Failed to read candidate data",
+						http.StatusInternalServerError,
+					)
+					return
+				}
+
 				candidates = append(candidates, c)
 			}
+
+			if err := rows.Err(); err != nil {
+				log.Printf("Candidate rows error: %v\n", err)
+				http.Error(
+					w,
+					"Failed while reading candidates",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+
 			json.NewEncoder(w).Encode(candidates)
 			return
 		}
 
+		// =====================================================
+		// POST - Add candidate
+		// =====================================================
+		if r.Method == http.MethodPost {
+			var c Candidate
+
+			if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+				http.Error(
+					w,
+					"Invalid candidate data",
+					http.StatusBadRequest,
+				)
+				return
+			}
+
+			// Generate ID if frontend didn't provide one.
+			if c.ID == "" {
+				c.ID = fmt.Sprintf(
+					"candidate-%d",
+					time.Now().UnixNano(),
+				)
+			}
+
+			_, err := db.Exec(`
+				INSERT INTO candidates (
+					id,
+					name,
+					nickname,
+					department,
+					academic_year,
+					category,
+					bio,
+					talent,
+					photo,
+					is_active
+				)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`,
+				c.ID,
+				c.Name,
+				c.Nickname,
+				c.Department,
+				c.Year,
+				c.Category,
+				c.Bio,
+				c.Talent,
+				c.Photo,
+				c.IsActive,
+			)
+
+			if err != nil {
+				log.Printf("Candidate INSERT error: %v\n", err)
+
+				http.Error(
+					w,
+					"Failed to add candidate",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+
+			log.Printf(
+				"Candidate added: %s (%s), active=%t\n",
+				c.Name,
+				c.Category,
+				c.IsActive,
+			)
+
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(c)
+			return
+		}
+
+		// =====================================================
+		// PUT - Edit / Activate / Deactivate candidate
+		// =====================================================
 		if r.Method == http.MethodPut {
 			var c Candidate
 
 			if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-				http.Error(w, "Invalid candidate data", http.StatusBadRequest)
+				http.Error(
+					w,
+					"Invalid candidate data",
+					http.StatusBadRequest,
+				)
 				return
 			}
 
 			if c.ID == "" {
-				http.Error(w, "Candidate ID is required", http.StatusBadRequest)
+				http.Error(
+					w,
+					"Candidate ID is required",
+					http.StatusBadRequest,
+				)
 				return
 			}
 
@@ -244,20 +391,41 @@ func CandidatesHandler(db *sql.DB) http.HandlerFunc {
 			)
 
 			if err != nil {
-				log.Printf("Candidate update error: %v\n", err)
-				http.Error(w, "Failed to update candidate", http.StatusInternalServerError)
+				log.Printf(
+					"Candidate UPDATE error: %v\n",
+					err,
+				)
+
+				http.Error(
+					w,
+					"Failed to update candidate",
+					http.StatusInternalServerError,
+				)
 				return
 			}
 
 			rowsAffected, err := result.RowsAffected()
+
 			if err != nil {
-				log.Printf("Rows affected error: %v\n", err)
-				http.Error(w, "Failed to verify candidate update", http.StatusInternalServerError)
+				log.Printf(
+					"Rows affected error: %v\n",
+					err,
+				)
+
+				http.Error(
+					w,
+					"Failed to verify candidate update",
+					http.StatusInternalServerError,
+				)
 				return
 			}
 
 			if rowsAffected == 0 {
-				http.Error(w, "Candidate not found", http.StatusNotFound)
+				http.Error(
+					w,
+					"Candidate not found",
+					http.StatusNotFound,
+				)
 				return
 			}
 
@@ -272,6 +440,15 @@ func CandidatesHandler(db *sql.DB) http.HandlerFunc {
 			json.NewEncoder(w).Encode(c)
 			return
 		}
+
+		// =====================================================
+		// Unsupported method
+		// =====================================================
+		http.Error(
+			w,
+			"Method not allowed",
+			http.StatusMethodNotAllowed,
+		)
 	}
 }
 
