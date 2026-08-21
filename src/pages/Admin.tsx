@@ -224,12 +224,22 @@ export default function Admin() {
     setCandidateModal({ mode: 'edit', id: c.id });
   };
 
-  const saveCandidate = () => {
-    if (!form.name.trim()) return;
-    if (candidateModal?.mode === 'add') addCandidate(form, actorName);
-    else if (candidateModal?.id) updateCandidate(candidateModal.id, form, actorName);
+  const saveCandidate = async () => {
+  if (!form.name.trim()) return;
+
+  try {
+    if (candidateModal?.mode === 'add') {
+      await addCandidate(form, actorName);
+    } else if (candidateModal?.id) {
+      await updateCandidate(candidateModal.id, form, actorName);
+    }
+
     setCandidateModal(null);
-  };
+  } catch (error) {
+    console.error('Failed to save candidate:', error);
+    alert('Failed to save candidate. Please try again.');
+  }
+};
 
   const inputStyle = { background: inputBg, color: textPrimary, border: `1px solid ${border}` };
   const inputCls = 'w-full px-4 py-3 rounded-xl text-sm outline-none transition-all focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]';
@@ -480,7 +490,7 @@ export default function Admin() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => setConfirmAction({ label: `${c.isActive ? 'Suspend' : 'Reinstate'} "${c.name}" from the active roster?`, action: () => toggleCandidateActive(c.id, actorName) })}
+                              onClick={() => setConfirmAction({ label: `${c.isActive ? 'Suspend' : 'Reinstate'} "${c.name}" from the active roster?`, action: async() => await toggleCandidateActive(c.id, actorName) })}
                               disabled={election.status === 'open' && c.isActive}
                               className="p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                               style={{ background: c.isActive ? 'rgba(255,122,174,0.1)' : 'rgba(0,201,167,0.1)', color: c.isActive ? '#FF7AAE' : '#00C9A7' }}
