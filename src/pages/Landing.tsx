@@ -273,7 +273,7 @@ const activeNomineesCount = candidates.filter(c => {
               <span className="font-mono text-sm tracking-[0.2em] uppercase mb-3 block" style={{ color: '#D4AF37' }}>The Faces of 2026</span>
               <h2 className="font-display text-3xl sm:text-4xl font-bold" style={{ color: textPrimary }}>Official Contenders</h2>
             </div>
-            <Link to="/results" className="hidden sm:flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: '#D4AF37' }}>
+            <Link to="/vote" className="hidden sm:flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: '#D4AF37' }}>
               View All <ArrowRight size={16} />
             </Link>
           </div>
