@@ -153,19 +153,6 @@ export default function Vote() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
-        {/* Voted Categories Dashboard */}
-        <div className="flex flex-wrap gap-2 p-1.5">
-          {visibleCategories.map(cat => {
-            const m = CATEGORY_META[cat];
-            const isActive = activeCategory === cat;
-            return (
-              <button key={cat} onClick={() => setActiveCategory(cat)}>
-                {m.label}
-              </button>
-    );
-  })}
-</div>
-
         {/* Sleek Segmented Category Tabs */}
         <div className="flex flex-wrap sm:flex-nowrap gap-2 p-1.5 rounded-2xl mb-10 backdrop-blur-xl shadow-sm" style={{ background: cardBg, border: `1px solid ${border}` }}>
           {visibleCategories.map(cat => {
