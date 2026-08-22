@@ -4,7 +4,7 @@ import { useElection } from '../context/ElectionContext';
 import { CATEGORY_META, type Category } from '../types';
 import {INITIAL_VOTES} from '../data';
 
-const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart'];
+const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart','popular_man','popular_woman'];
 
 export default function Results() {
   const { election, candidates, voteCounts, darkMode, winners } = useElection();
@@ -30,9 +30,21 @@ export default function Results() {
     }, 2500);
   };
 
+   const isMajorWelcome = election?.type === 'major';
+   const visibleCategories: Category[] = isMajorWelcome
+    ? ['king', 'queen', 'style', 'smart']
+    : CATEGORIES;
+
   useEffect(() => {
+    if (!visibleCategories.includes(activeCategory)) {
+      setActiveCategory('king');
+    }
+  }, [election?.type, activeCategory]);
+
+  useEffect(() => {
+    setRevealed({});
     setRevealPhase('idle');
-  }, [activeCategory]);
+  }, [election?.type]);
 
   if (!isPublished) {
     return (
