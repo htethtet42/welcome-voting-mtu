@@ -112,7 +112,7 @@ export default function Results() {
       </div>
 
       {/* Category Tabs */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 mb-8">
         <div
           className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-1 p-1 rounded-2xl w-full overflow-hidden"
           style={{ background: darkMode ? '#161624' : '#FFFFFF', border: `1px solid ${border}` }}
