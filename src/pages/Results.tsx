@@ -114,7 +114,7 @@ export default function Results() {
       {/* Category Tabs */}
       <div className="max-w-2xl mx-auto px-4 sm:px-6 mb-8">
         <div
-          className="flex gap-1 p-1 rounded-2xl"
+          className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-1 rounded-2xl w-full overflow-hidden"
           style={{ background: darkMode ? '#161624' : '#FFFFFF', border: `1px solid ${border}` }}
         >
           {visibleCategories.map(cat => {
@@ -124,7 +124,7 @@ export default function Results() {
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all"
+                className="w-full flex items-center justify-center gap-1 sm:gap-2 py-3 rounded-xl text-xs sm:text-sm font-medium transition-all min-w-0"
                 style={{
                   background: active ? m.bgColor : 'transparent',
                   color: active ? m.color : textMuted,
