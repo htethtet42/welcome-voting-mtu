@@ -117,7 +117,7 @@ export default function Results() {
           className="flex gap-1 p-1 rounded-2xl"
           style={{ background: darkMode ? '#161624' : '#FFFFFF', border: `1px solid ${border}` }}
         >
-          {CATEGORIES.map(cat => {
+          {visibleCategories.map(cat => {
             const m = CATEGORY_META[cat];
             const active = activeCategory === cat;
             return (
