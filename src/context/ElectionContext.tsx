@@ -65,7 +65,7 @@ interface ElectionContextType {
     actorName: string
   ) => Promise<void>;
 
-  resetVotes: (actorName: string) => void;
+  resetVotes: (actorName: string) => Promise<void>;
 
   toggleDarkMode: () => void;
 
@@ -1073,18 +1073,46 @@ export function ElectionProvider({
   // =========================================================
 
   const resetVotes = useCallback(
-    (actorName: string) => {
+  async (actorName: string) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/ballots`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Bypass-Tunnel-Reminder': 'true',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to reset votes: ${response.status}`
+        );
+      }
+
+      // Immediately clear votes on the admin device
       setVoteCounts({});
       setVoteRecords([]);
 
       addAudit(
-        actorName,
+        actorName || 'Admin',
         'VOTES_RESET',
-        'WARNING: Local vote counts reset (DB untouched)'
+        'All votes were permanently erased from the database'
       );
-    },
-    [addAudit]
-  );
+
+      console.log('✅ All votes reset globally');
+    } catch (error) {
+      console.error(
+        '❌ Error resetting votes:',
+        error
+      );
+
+      throw error;
+    }
+  },
+  [addAudit]
+);
 
   // =========================================================
   // DARK MODE

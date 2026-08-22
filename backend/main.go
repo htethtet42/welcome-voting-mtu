@@ -161,28 +161,135 @@ func CastVoteHandler(db *sql.DB) http.HandlerFunc {
 
 func GetAllBallotsHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		rows, err := db.Query(`SELECT id, voter_id, voter_email, voter_name, candidate_id, category, created_at FROM ballots ORDER BY created_at DESC`)
-		if err != nil {
-			log.Printf("Ballots query error: %v\n", err)
-			http.Error(w, "Failed to query ballots", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		var ballots []BallotRecord = []BallotRecord{}
-		for rows.Next() {
-			var b BallotRecord
-			rows.Scan(&b.ID, &b.VoterID, &b.VoterEmail, &b.VoterName, &b.CandidateID, &b.Category, &b.CreatedAt)
-			ballots = append(ballots, b)
-		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ballots)
+		
+		// GET - Get all ballots
+		if r.Method == http.MethodGet {
+
+			rows, err := db.Query(`
+				SELECT
+					id,
+					voter_id,
+					voter_email,
+					voter_name,
+					candidate_id,
+					category,
+					created_at
+				FROM ballots
+				ORDER BY created_at DESC
+			`)
+
+			if err != nil {
+				log.Printf("Ballots query error: %v\n", err)
+				http.Error(
+					w,
+					"Failed to query ballots",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+
+			defer rows.Close()
+
+			var ballots []BallotRecord = []BallotRecord{}
+
+			for rows.Next() {
+				var b BallotRecord
+
+				err := rows.Scan(
+					&b.ID,
+					&b.VoterID,
+					&b.VoterEmail,
+					&b.VoterName,
+					&b.CandidateID,
+					&b.Category,
+					&b.CreatedAt,
+				)
+
+				if err != nil {
+					log.Printf(
+						"Ballot scan error: %v\n",
+						err,
+					)
+					http.Error(
+						w,
+						"Failed to read ballot data",
+						http.StatusInternalServerError,
+					)
+					return
+				}
+
+				ballots = append(ballots, b)
+			}
+
+			if err := rows.Err(); err != nil {
+				log.Printf(
+					"Ballot rows error: %v\n",
+					err,
+				)
+				http.Error(
+					w,
+					"Failed while reading ballots",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+
+			json.NewEncoder(w).Encode(ballots)
+			return
+		}
+		
+		// DELETE - Reset ALL votes
+		if r.Method == http.MethodDelete {
+
+			result, err := db.Exec(`
+				DELETE FROM ballots
+			`)
+
+			if err != nil {
+				log.Printf(
+					"Ballot reset error: %v\n",
+					err,
+				)
+
+				http.Error(
+					w,
+					"Failed to reset votes",
+					http.StatusInternalServerError,
+				)
+				return
+			}
+
+			rowsAffected, err := result.RowsAffected()
+
+			if err != nil {
+				log.Printf(
+					"Rows affected error: %v\n",
+					err,
+				)
+			}
+
+			log.Printf(
+				"⚠️ ALL VOTES RESET. Deleted %d ballots.\n",
+				rowsAffected,
+			)
+
+			w.WriteHeader(http.StatusOK)
+
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"status":  "success",
+				"message": "All votes have been reset",
+				"deleted": rowsAffected,
+			})
+
+			return
+		}
+		http.Error(
+			w,
+			"Method not allowed",
+			http.StatusMethodNotAllowed,
+		)
 	}
 }
 
