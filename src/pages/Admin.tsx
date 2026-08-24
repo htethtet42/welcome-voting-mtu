@@ -71,7 +71,7 @@ const Field = ({ label, textMuted, children }: { label: string; textMuted?: stri
     {children}
   </div>
 );
-const API_URL = 'https://ucn4cu-ip-103-57-207-5.tunnelmole.net/api';
+const API_URL = 'https://9yq4ib-ip-103-203-135-38.tunnelmole.net/api';
 
 export default function Admin() {
   const {
