@@ -141,8 +141,8 @@ const activeNomineesCount = candidates.filter(c => {
           <span className="text-slate-950 dark:text-[#F8F9FA]">Voting Awards 2026</span>
         </h1>
 
-        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-semibold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-          The search for excellence. Cast your ballot for the most outstanding students at MTU. <span className="font-medium">Every vote shapes the legacy.</span>
+        <p className="max-w-2xl text-lg sm:text-xl mb-8 z-10 leading-relaxed font-display font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+          The search for excellence. Cast your ballot for the most outstanding students at MTU. <span>Every vote shapes the legacy.</span>
         </p>
 
         {/* Deadline Container */}
