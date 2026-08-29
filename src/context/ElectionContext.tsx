@@ -31,7 +31,12 @@ interface ElectionContextType {
     voter: { id: string; name: string; email: string },
     anonymous?: boolean
   ) => Promise<
-    'success' | 'already_voted' | 'closed' | 'not_eligible' | 'error'
+    | 'success'
+    | 'already_voted'
+    | 'closed'
+    | 'not_eligible'
+    | 'session_expired'
+    | 'error'
   >;
 
   fetchGlobalLedger: () => Promise<void>;
@@ -612,8 +617,10 @@ export function ElectionProvider({
           return 'already_voted';
         }
 
+        // 401 means the voting session is gone (expired, revoked, or never
+        // established), which is a sign-in problem — not a network failure.
         if (response.status === 401) {
-          return 'not_eligible';
+          return 'session_expired';
         }
 
         if (response.status === 403) {

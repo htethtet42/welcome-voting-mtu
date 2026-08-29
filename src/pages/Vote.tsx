@@ -12,7 +12,7 @@ const DEADLINE = new Date('2026-09-02T23:59:59');
 
 export default function Vote() {
   const { candidates, election, voteRecords, castVote, darkMode } = useElection();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState<Category>('king');
@@ -76,6 +76,9 @@ export default function Vote() {
     const wasAnonymous = anonymous;
     setAnonymous(false);
     
+    // Every outcome gets its own message. These used to collapse into
+    // "Network error: Ensure the database is running", which was shown for an
+    // expired session too — meaningless to a voter and misleading to debug.
     if (result === 'success') {
       setSuccessMsg(
         wasAnonymous
@@ -84,13 +87,23 @@ export default function Vote() {
       );
       setTimeout(() => setSuccessMsg(null), 5000);
     } else if (result === 'already_voted') {
-      setSuccessMsg('You have already verified a vote in this category.');
+      setSuccessMsg('You have already voted in this category.');
       setTimeout(() => setSuccessMsg(null), 3000);
     } else if (result === 'closed') {
-      setSuccessMsg('The voting session is currently closed.');
+      setSuccessMsg('Voting is closed right now.');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } else if (result === 'session_expired') {
+      setSuccessMsg('Your session expired — signing you in again…');
+      setTimeout(() => {
+        setSuccessMsg(null);
+        logout();
+        navigate('/login', { state: { from: '/vote' } });
+      }, 1800);
+    } else if (result === 'not_eligible') {
+      setSuccessMsg('That candidate is not available in this category.');
       setTimeout(() => setSuccessMsg(null), 3000);
     } else {
-      setSuccessMsg('Network error: Ensure the database is running.');
+      setSuccessMsg('Could not reach the server. Please try again.');
       setTimeout(() => setSuccessMsg(null), 3000);
     }
   };
