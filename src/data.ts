@@ -243,14 +243,8 @@ export const INITIAL_ELECTION: ElectionState = {
   publishedAt: null,
 };
 
-export const INITIAL_VOTES: Record<string, number> = {
-  'king-1': 142, 'king-2': 98, 'king-3': 76,
-  'queen-1': 167, 'queen-2': 134, 'queen-3': 89,
-  'style-1':187, 'style-2':23, 'style-3':45,
-  'smart-1':121, 'smart-2':134, 'smart-3':56,
-  'popular_man-1':187, 'popular_man-2':23, 'popular_man-3':45,
-  'popular_woman-1':121, 'popular_woman-2':134, 'popular_woman-3':56,
-};
+// INITIAL_VOTES (hardcoded demo tallies) was removed: the results page fell
+// back to it, showing invented vote counts next to real ones.
 
 export const LIVESTREAM_CHAT = [
   { name: 'Aye M.', msg: 'This competition is amazing! 🔥', time: '18:02' },

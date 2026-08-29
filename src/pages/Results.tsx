@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Trophy, Lock } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { CATEGORY_META, type Category } from '../types';
-import {INITIAL_VOTES} from '../data';
 
 const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart','popular_man','popular_woman'];
 
@@ -81,7 +80,9 @@ export default function Results() {
   const meta = CATEGORY_META[activeCategory];
   const catCandidates = candidates
     .filter(c => c.category === activeCategory && c.isActive)
-    .map(c => ({ ...c, votes: voteCounts[c.id] ?? INITIAL_VOTES[c.id] ?? 0 }))
+    // Real tallies only. This used to fall back to INITIAL_VOTES, a set of
+    // hardcoded demo numbers, so a candidate with no votes displayed 142.
+    .map(c => ({ ...c, votes: voteCounts[c.id] ?? 0 }))
     .sort((a, b) => b.votes - a.votes);
   const totalCatVotes = catCandidates.reduce((s, c) => s + c.votes, 0);
   const isRevealed = !!revealed[activeCategory];
@@ -187,6 +188,21 @@ export default function Results() {
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {isRevealed && !winner && (
+          <div
+            className="rounded-3xl border p-12 text-center mb-8"
+            style={{ borderColor: border, background: cardBg }}
+          >
+            <p className="text-4xl mb-4">{meta.icon}</p>
+            <p className="font-display font-bold text-xl mb-2" style={{ color: textPrimary }}>
+              No votes yet for {meta.label}
+            </p>
+            <p className="text-sm" style={{ color: textMuted }}>
+              A winner appears here once ballots have been cast in this category.
+            </p>
           </div>
         )}
 

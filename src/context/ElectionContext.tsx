@@ -1216,7 +1216,10 @@ export function ElectionProvider({
     ] as Category[]
   ).reduce(
     (result, category) => {
-      result[category] =
+      // A category has no winner until someone has actually been voted for.
+      // Sorting alone would crown whichever candidate happened to be first in
+      // the list while every tally was still zero.
+      const top =
         candidates
           .filter(
             (candidate) =>
@@ -1228,6 +1231,9 @@ export function ElectionProvider({
               (voteCounts[b.id] ?? 0) -
               (voteCounts[a.id] ?? 0)
           )[0] ?? null;
+
+      result[category] =
+        top && (voteCounts[top.id] ?? 0) > 0 ? top : null;
 
       return result;
     },
