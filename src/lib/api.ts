@@ -11,16 +11,19 @@
  */
 const configured = import.meta.env.VITE_API_URL?.trim();
 
-if (!configured && import.meta.env.PROD) {
-  // In production a missing value means every request silently hits the wrong
-  // origin, so fail loudly at startup rather than at first fetch.
-  throw new Error(
-    'VITE_API_URL is not set. Configure it in the deployment environment and rebuild.'
-  );
-}
+/**
+ * In production the default is the RELATIVE path "/api", which `vercel.json`
+ * rewrites to the Go backend. Same-origin means no CORS preflights, and only
+ * one origin to authorize in Google Cloud Console.
+ *
+ * In development there is no rewrite, so fall back to the local Go server.
+ * Set VITE_API_URL to override either (e.g. to point a local frontend at the
+ * deployed backend).
+ */
+const fallback = import.meta.env.PROD ? '/api' : 'http://localhost:8081/api';
 
 // Trailing slashes would produce "//api/votes" when concatenated.
-export const API_URL = (configured || 'http://localhost:8081/api').replace(/\/+$/, '');
+export const API_URL = (configured || fallback).replace(/\/+$/, '');
 
 const TOKEN_KEY = 'mtu_admin_token';
 
