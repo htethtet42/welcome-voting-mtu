@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (payload?.error === 'incorrect_roll_number') {
           const left = payload.attemptsLeft ?? 0;
           setLoginError(
-            `That doesn't look like a valid roll number. Use the format III.BE-CEIT-23. ${left} attempt${left === 1 ? '' : 's'} remaining.`
+            `That doesn't look like a valid roll number. ${left} attempt${left === 1 ? '' : 's'} remaining.`
           );
           setPendingVoter(prev => (prev ? { ...prev, attemptsLeft: left } : prev));
         } else {
