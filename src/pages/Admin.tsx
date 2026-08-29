@@ -11,6 +11,7 @@ import {
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
 import { CATEGORY_META, type Category, type Candidate } from '../types';
+import { API_URL } from '../lib/api';
 
 const TABS = ['Overview', 'Candidates', 'Ballots', 'Analytics', 'Audit', 'Controls'] as const;
 type Tab = typeof TABS[number];
@@ -71,7 +72,6 @@ const Field = ({ label, textMuted, children }: { label: string; textMuted?: stri
     {children}
   </div>
 );
-const API_URL = 'https://xpf5p2-ip-103-57-207-5.tunnelmole.net/api';
 
 export default function Admin() {
   const {

@@ -15,6 +15,10 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5174,
+    // Pinned because Google OAuth matches the origin EXACTLY. If Vite silently
+    // falls forward to another port, sign-in fails with `origin_mismatch`.
+    // strictPort makes that a startup error instead of a confusing auth error.
+    port: 5173,
+    strictPort: true,
   },
 });

@@ -1,25 +1,34 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { AuthUser } from '../types';
-import { ADMIN_EMAIL, ADMIN_PASSWORD } from '../data';
+import {
+  API_URL,
+  setAdminToken,
+  clearAdminToken,
+  getAdminToken,
+  authHeaders,
+  setVoterToken,
+  clearVoterToken,
+  getVoterToken,
+  voterHeaders,
+} from '../lib/api';
 
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  pendingOtp: { email: string; code: string } | null;
+  /** Set once Google has verified the email and the roll number is awaited. */
+  pendingVoter: { email: string; name: string; attemptsLeft: number } | null;
   loginError: string | null;
-  requestOtp: (email: string) => void;
-  verifyOtp: (code: string) => boolean;
-  loginAdmin: (email: string, password: string) => boolean;
+  /** Step 1: exchange a Google ID token for a roll-number challenge. */
+  signInWithGoogle: (credential: string) => Promise<boolean>;
+  /** Step 2: verify the student roll number and start the voting session. */
+  verifyRollNumber: (studentId: string) => Promise<boolean>;
+  loginAdmin: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -28,7 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return s ? JSON.parse(s) : null;
     } catch { return null; }
   });
-  const [pendingOtp, setPendingOtp] = useState<{ email: string; code: string } | null>(null);
+  const [pendingVoter, setPendingVoter] = useState<
+    { email: string; name: string; attemptsLeft: number } | null
+  >(null);
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,58 +48,175 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else sessionStorage.removeItem('mtu_user');
   }, [user]);
 
-  const requestOtp = (email: string) => {
+  /**
+   * Step 1 — hand Google's ID token to the backend.
+   *
+   * The backend verifies the token's signature against Google's public keys,
+   * confirms the email is on the official roll, and returns a short-lived
+   * challenge. No voting session exists yet: the roll number is still required.
+   *
+   * This replaces a fake OTP that was generated in the browser and never sent,
+   * which meant any email address could vote.
+   */
+  const signInWithGoogle = async (credential: string): Promise<boolean> => {
     setLoginError(null);
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-      setLoginError('Enter a valid email address.');
-      return;
-    }
-    const code = generateOtp();
-    // A frontend cannot safely send email itself. Connect a server/email provider
-    // here before production; the code is visible only for this local preview.
-    setPendingOtp({ email: normalizedEmail, code });
-  };
+    try {
+      const response = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
 
-  const verifyOtp = (code: string): boolean => {
-    if (!pendingOtp) return false;
-    if (code !== pendingOtp.code) {
-      setLoginError('Incorrect OTP. Please try again.');
+      if (!response.ok) {
+        const body = await response.text();
+        if (response.status === 403 || body.includes('not_eligible')) {
+          setLoginError(
+            'This account is not on the student voter roll. Use the email registered with the university, or contact the event organizers.'
+          );
+        } else if (response.status === 503) {
+          setLoginError('Voter sign-in is not configured yet. Contact the organizers.');
+        } else {
+          setLoginError('Google sign-in failed. Please try again.');
+        }
+        return false;
+      }
+
+      const data = await response.json();
+      setChallengeToken(data.challengeToken);
+      setPendingVoter({
+        email: data.email,
+        name: data.name,
+        attemptsLeft: data.attemptsLeft ?? 5,
+      });
+      return true;
+    } catch (error) {
+      console.error('Google sign-in failed:', error);
+      setLoginError('Could not reach the server. Check your connection.');
       return false;
     }
-    const email = pendingOtp.email;
-    const localPart = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
-    const name = localPart.replace(/\b\w/g, char => char.toUpperCase()) || 'Voter';
-    setUser({
-      id: `email:${email}`,
-      studentId: 'EMAIL-VERIFIED',
-      email,
-      name,
-      role: 'voter',
-    });
-    setPendingOtp(null);
-    return true;
   };
 
-  const loginAdmin = (email: string, password: string): boolean => {
-    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && password === ADMIN_PASSWORD) {
+  /**
+   * Step 2 — verify the student roll number.
+   *
+   * Only on success does the backend issue a voting session token. Attempts
+   * are capped server-side, so a roll number cannot be guessed.
+   */
+  const verifyRollNumber = async (studentId: string): Promise<boolean> => {
+    if (!challengeToken || !pendingVoter) return false;
+    setLoginError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/auth/verify-roll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeToken, studentId }),
+      });
+
+      if (!response.ok) {
+        let payload: any = null;
+        try {
+          payload = await response.json();
+        } catch {
+          /* non-JSON error body */
+        }
+
+        if (response.status === 429) {
+          setLoginError('Too many incorrect attempts. Please sign in with Google again.');
+          setPendingVoter(null);
+          setChallengeToken(null);
+        } else if (payload?.error === 'incorrect_roll_number') {
+          const left = payload.attemptsLeft ?? 0;
+          setLoginError(
+            `Incorrect roll number. ${left} attempt${left === 1 ? '' : 's'} remaining.`
+          );
+          setPendingVoter(prev => (prev ? { ...prev, attemptsLeft: left } : prev));
+        } else {
+          setLoginError('Your sign-in expired. Please sign in with Google again.');
+          setPendingVoter(null);
+          setChallengeToken(null);
+        }
+        return false;
+      }
+
+      const data = await response.json();
+      setVoterToken(data.token);
+      setUser({
+        id: `email:${data.email}`,
+        studentId: data.studentId,
+        email: data.email,
+        name: data.name || 'Voter',
+        role: 'voter',
+      });
+      setPendingVoter(null);
+      setChallengeToken(null);
+      return true;
+    } catch (error) {
+      console.error('Roll number verification failed:', error);
+      setLoginError('Could not reach the server. Check your connection.');
+      return false;
+    }
+  };
+
+  /**
+   * Authenticates against the backend, which verifies the password against a
+   * bcrypt hash and issues a session token.
+   *
+   * The credentials are NOT checked in the browser: previously they were
+   * compared against constants compiled into the bundle, which any visitor
+   * could read. The returned token is what authorizes every admin request.
+   */
+  const loginAdmin = async (email: string, password: string): Promise<boolean> => {
+    setLoginError(null);
+    try {
+      const response = await fetch(`${API_URL}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+
+      if (!response.ok) {
+        setLoginError('Invalid admin credentials.');
+        return false;
+      }
+
+      const data = await response.json();
+      setAdminToken(data.token);
       setUser({
         id: 'admin-001',
         studentId: 'ADMIN',
-        email: ADMIN_EMAIL,
-        name: 'Event Admin',
+        email: data.email,
+        name: data.name || 'Event Admin',
         role: 'admin',
       });
-      setLoginError(null);
       return true;
+    } catch (error) {
+      console.error('Admin login failed:', error);
+      setLoginError('Could not reach the server. Check your connection.');
+      return false;
     }
-    setLoginError('Invalid admin credentials.');
-    return false;
   };
 
   const logout = () => {
+    // Revoke the session server-side so the token cannot be replayed.
+    // Fire-and-forget: local state is cleared regardless of the response.
+    if (getAdminToken()) {
+      fetch(`${API_URL}/admin/logout`, {
+        method: 'POST',
+        headers: authHeaders(),
+      }).catch(() => { /* offline logout is still a local logout */ });
+    }
+    if (getVoterToken()) {
+      fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: voterHeaders(),
+      }).catch(() => { /* offline logout is still a local logout */ });
+    }
+    clearAdminToken();
+    clearVoterToken();
     setUser(null);
-    setPendingOtp(null);
+    setPendingVoter(null);
+    setChallengeToken(null);
     sessionStorage.removeItem('mtu_user');
   };
 
@@ -98,10 +227,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isAuthenticated: !!user,
       isAdmin: user?.role === 'admin',
-      pendingOtp,
+      pendingVoter,
       loginError,
-      requestOtp,
-      verifyOtp,
+      signInWithGoogle,
+      verifyRollNumber,
       loginAdmin,
       logout,
       clearError,

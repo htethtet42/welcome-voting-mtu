@@ -2,3 +2,6 @@
 .env.*
 *.exe
 server
+!.env.example
+mtu-voting-backend
+.vercel

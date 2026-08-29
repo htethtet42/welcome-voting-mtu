@@ -14,6 +14,7 @@ import type {
   VoteRecord,
 } from '../types';
 import { INITIAL_ELECTION, CANDIDATES as SEED_CANDIDATES } from '../data';
+import { API_URL, authHeaders, getAdminToken, voterHeaders, getVoterToken } from '../lib/api';
 
 interface ElectionContextType {
   election: ElectionState;
@@ -99,8 +100,6 @@ function makeAuditEntry(
   };
 }
 
-const API_URL =
-  'https://xpf5p2-ip-103-57-207-5.tunnelmole.net/api';
 
 /**
  * Normalize candidate category values coming from either
@@ -442,48 +441,108 @@ export function ElectionProvider({
   // DATABASE FUNCTIONS - BALLOTS
   // =========================================================
 
+  /**
+   * Refreshes vote data.
+   *
+   * Vote COUNTS come from /tally, which returns aggregates only. The full
+   * ballot ledger (/ballots) carries every voter's name and email, so it is
+   * admin-only and fetched solely when an admin token is present — the results
+   * and livestream pages are shown publicly and must never receive that data.
+   *
+   * Voters instead get just their own ballots from /my-ballots, which is all
+   * the UI needs to mark categories as already voted.
+   */
   const fetchGlobalLedger = useCallback(async () => {
+    const headers = { 'Bypass-Tunnel-Reminder': 'true' };
+
+    // --- Public: aggregate counts ---
     try {
-      const response = await fetch(
-        `${API_URL}/ballots`,
-        {
-          cache: 'no-store',
-          headers: {
-            'Bypass-Tunnel-Reminder': 'true',
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/tally`, {
+        cache: 'no-store',
+        headers,
+      });
 
       if (!response.ok) {
-        throw new Error(
-          'Failed to fetch ballots'
-        );
+        throw new Error(`Failed to fetch tally: ${response.status}`);
       }
 
       const data = await response.json();
+      setVoteCounts(data.counts || {});
+    } catch (error) {
+      console.error('❌ Error loading tally:', error);
+    }
 
-      const formattedData: VoteRecord[] = (
-        data || []
-      ).map((record: any) => ({
-        ...record,
-        createdAt: new Date(record.createdAt),
-      }));
+    // --- Admin: full ledger, for the Ballots and Audit views ---
+    if (getAdminToken()) {
+      try {
+        const response = await fetch(`${API_URL}/ballots`, {
+          cache: 'no-store',
+          headers: { ...headers, ...authHeaders() },
+        });
 
-      setVoteRecords(formattedData);
+        if (response.ok) {
+          const data = await response.json();
+          setVoteRecords(
+            (data || []).map((record: any) => ({
+              ...record,
+              createdAt: new Date(record.createdAt),
+            }))
+          );
+          return;
+        }
 
-      const counts: Record<string, number> = {};
+        // 401 means the session expired; fall through to the voter path so the
+        // UI degrades rather than showing stale privileged data.
+        if (response.status !== 401) {
+          throw new Error(`Failed to fetch ballots: ${response.status}`);
+        }
+        setVoteRecords([]);
+      } catch (error) {
+        console.error('❌ Error loading ballot ledger:', error);
+      }
+      return;
+    }
 
-      formattedData.forEach((record) => {
-        counts[record.candidateId] =
-          (counts[record.candidateId] || 0) + 1;
+    // --- Voter: only their own ballots, identified by session token ---
+    if (!getVoterToken()) {
+      setVoteRecords([]);
+      return;
+    }
+
+    let voterId = '';
+    try {
+      const stored = sessionStorage.getItem('mtu_user');
+      if (stored) voterId = JSON.parse(stored)?.id ?? '';
+    } catch {
+      voterId = '';
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/my-ballots`, {
+        cache: 'no-store',
+        headers: { ...headers, ...voterHeaders() },
       });
 
-      setVoteCounts(counts);
-    } catch (error) {
-      console.error(
-        '❌ Error loading global ballots:',
-        error
+      if (!response.ok) {
+        throw new Error(`Failed to fetch own ballots: ${response.status}`);
+      }
+
+      const data = await response.json();
+      // Shaped as VoteRecord so existing consumers (Vote.tsx) work unchanged.
+      // Identity fields are intentionally blank — the server no longer sends them.
+      setVoteRecords(
+        (data || []).map((entry: any, i: number) => ({
+          id: `own-${i}`,
+          voterId,
+          voterName: '',
+          voterEmail: '',
+          candidateId: entry.candidateId,
+          category: entry.category,
+          createdAt: new Date(),
+        }))
       );
+    } catch (error) {
+      console.error('❌ Error loading own ballots:', error);
     }
   }, []);
 
@@ -531,6 +590,9 @@ export function ElectionProvider({
       }
 
       try {
+        // Identity is NOT sent: the backend reads it from the voter session
+        // token. Anything sent here would be ignored, and trusting it was how
+        // a caller could previously vote as someone else.
         const response = await fetch(
           `${API_URL}/votes`,
           {
@@ -538,19 +600,22 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...voterHeaders(),
             },
-            body: JSON.stringify({
-              voterId: voter.id,
-              voterEmail: voter.email,
-              voterName: voter.name,
-              candidateId,
-              category,
-            }),
+            body: JSON.stringify({ candidateId, category }),
           }
         );
 
         if (response.status === 409) {
           return 'already_voted';
+        }
+
+        if (response.status === 401) {
+          return 'not_eligible';
+        }
+
+        if (response.status === 403) {
+          return 'closed';
         }
 
         if (!response.ok) {
@@ -620,6 +685,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify({ type }),
           }
@@ -682,6 +748,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify({
               status: 'open',
@@ -739,6 +806,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify({
               status: 'closed',
@@ -788,6 +856,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify({
               status: 'published',
@@ -839,6 +908,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify(candidate),
           }
@@ -930,6 +1000,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify(
               updatedCandidate
@@ -1013,6 +1084,7 @@ export function ElectionProvider({
             headers: {
               'Content-Type': 'application/json',
               'Bypass-Tunnel-Reminder': 'true',
+              ...authHeaders(),
             },
             body: JSON.stringify(
               updatedCandidate
@@ -1081,6 +1153,7 @@ export function ElectionProvider({
           method: 'DELETE',
           headers: {
             'Bypass-Tunnel-Reminder': 'true',
+            ...authHeaders(),
           },
         }
       );
