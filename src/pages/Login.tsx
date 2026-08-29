@@ -216,17 +216,13 @@ export default function Login() {
                     type="text"
                     value={rollNumber}
                     onChange={e => { setRollNumber(e.target.value); clearError(); }}
-                    placeholder="e.g. III.BE-CEIT-23"
+                    placeholder="e.g. III.BE.CEIT-23"
                     className={`${inputClass} pl-10 font-mono tracking-wide`}
                     style={inputStyle(!!loginError)}
                     autoFocus
                     required
                   />
                 </div>
-                <p className="text-xs mt-2" style={{ color: textMuted }}>
-                  Format: year.degree-department-number — e.g.{' '}
-                  <span className="font-mono" style={{ color: '#D4AF37' }}>III.BE-CEIT-23</span>
-                </p>
               </div>
 
               {loginError && (

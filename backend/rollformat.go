@@ -8,12 +8,12 @@ import (
 
 // rollNumberPattern matches MTU student roll numbers, e.g.
 //
-//	III.BE-CEIT-23
-//	I.BE-CEIT-21
-//	II.BE-Che-1
-//	IV.BE-Me-9
+//	III.BE.CEIT-23
+//	I.BE.CEIT-21
+//	II.BE.Che-1
+//	IV.BE.Me-9
 //
-// Shape: <year>.<degree>-<department>-<number>
+// Shape: <year>.<degree>.<department>-<number>
 //   - year:       Roman numerals (I, II, III, IV, V, VI, …)
 //   - degree:     1–6 letters (BE, BTech, ME, …)
 //   - department: 1–15 letters (CEIT, Che, Me, Civil, EP, Mechatronic, …)
@@ -23,9 +23,12 @@ import (
 // number is accepted. There is no list of valid departments or numbers to
 // keep in sync, and no student is turned away for an unusual department code.
 //
+// A hyphen is also tolerated where the second dot belongs (III.BE-CEIT-23), so
+// a student who mistypes the separator is not locked out of voting.
+//
 // Case-insensitive, since students type these on phone keyboards.
 var rollNumberPattern = regexp.MustCompile(
-	`^(?i)[IVX]{1,5}\.[A-Za-z]{1,6}-[A-Za-z]{1,15}-\d{1,5}$`,
+	`^(?i)[IVX]{1,5}\.[A-Za-z]{1,6}[.\-][A-Za-z]{1,15}-\d{1,5}$`,
 )
 
 // validRollFormat reports whether s looks like a roll number.
