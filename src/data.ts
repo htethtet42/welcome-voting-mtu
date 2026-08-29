@@ -222,8 +222,17 @@ export const CANDIDATES: Candidate[] = [
 ];
 
 
-export const ADMIN_EMAIL = 'admin@mtu.edu.mm';
-export const ADMIN_PASSWORD = 'MTUfresher&2026';
+// Admin credentials are NOT stored in the frontend.
+//
+// The password previously lived here as a plain constant, which meant Vite
+// inlined it into the public JavaScript bundle where any visitor could read it.
+// Authentication now happens server-side: POST /api/admin/login verifies the
+// password against a bcrypt hash in the admin_users table and returns a
+// session token. See backend/auth.go.
+//
+// To add or change an admin:
+//   cd backend && go run ./cmd/hashpw 'new-password'
+//   INSERT INTO admin_users (email, name, password_hash) VALUES (...);
 
 export const INITIAL_ELECTION: ElectionState = {
   id: 'elect-2026',

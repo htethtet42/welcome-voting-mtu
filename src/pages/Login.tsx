@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Crown, Mail, KeyRound, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Crown, Mail, ShieldCheck, Eye, EyeOff, ArrowLeft, IdCard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useElection } from '../context/ElectionContext';
+import { GOOGLE_CLIENT_ID } from '../lib/api';
 
 type Mode = 'voter' | 'admin';
-type Step = 'credentials' | 'otp';
+type Step = 'credentials' | 'roll';
 
 export default function Login() {
-  const { requestOtp, verifyOtp, loginAdmin, pendingOtp, loginError, clearError } = useAuth();
+  const { signInWithGoogle, verifyRollNumber, loginAdmin, pendingVoter, loginError, clearError } = useAuth();
   const { darkMode } = useElection();
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,10 +18,11 @@ export default function Login() {
   const [mode, setMode] = useState<Mode>('voter');
   const [step, setStep] = useState<Step>('credentials');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [rollNumber, setRollNumber] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [customError, setCustomError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const bg = darkMode ? '#0D0D1A' : '#F8F5EF';
   const cardBg = darkMode ? '#161624' : '#FFFFFF';
@@ -29,43 +31,67 @@ export default function Login() {
   const border = darkMode ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.25)';
   const inputBg = darkMode ? '#0D0D1A' : '#F0EDE8';
 
-  const handleVoterRequest = (e: React.FormEvent) => {
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Renders Google's official Sign In button.
+   *
+   * The button must come from Google's script: it returns a signed ID token
+   * that only Google can mint, which the backend verifies. A hand-rolled
+   * button could not produce a trustworthy credential.
+   */
+  useEffect(() => {
+    if (mode !== 'voter' || step !== 'credentials') return;
+    if (!GOOGLE_CLIENT_ID) return;
+
+    const google = (window as any).google;
+    if (!google?.accounts?.id || !googleButtonRef.current) return;
+
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response: { credential: string }) => {
+        setSubmitting(true);
+        const ok = await signInWithGoogle(response.credential);
+        setSubmitting(false);
+        if (ok) setStep('roll');
+      },
+    });
+
+    google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: darkMode ? 'filled_black' : 'outline',
+      size: 'large',
+      width: 320,
+      text: 'signin_with',
+      shape: 'pill',
+    });
+  }, [mode, step, darkMode, signInWithGoogle]);
+
+  const handleRollVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    clearError();
-    setCustomError(null);
-
-    // Validate email syntax and @gmail.com domain
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail.endsWith('@gmail.com')) {
-      setCustomError('"Please enter a valid email address with correct syntax (e.g., example@gmail.com)."');
-      return;
-    }
-
-    requestOtp(cleanEmail);
-  };
-
-  const handleOtpVerify = (e: React.FormEvent) => {
-    e.preventDefault();
-    const ok = verifyOtp(otp);
+    setSubmitting(true);
+    const ok = await verifyRollNumber(rollNumber);
+    setSubmitting(false);
     if (ok) navigate(from, { replace: true });
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = loginAdmin(email, adminPassword);
+    setSubmitting(true);
+    const ok = await loginAdmin(email, adminPassword);
+    setSubmitting(false);
     if (ok) navigate('/admin', { replace: true });
   };
 
   const handleBackToCredentials = () => {
     setStep('credentials');
-    setOtp('');
+    setRollNumber('');
     clearError();
     setCustomError(null);
   };
 
-  // Sync step state when pendingOtp exists
-  if (pendingOtp && step !== 'otp') {
-    setStep('otp');
+  // Google verified the email; the roll number is still outstanding.
+  if (pendingVoter && step !== 'roll') {
+    setStep('roll');
   }
 
   const inputClass = `w-full px-4 py-3 rounded-xl text-sm outline-none transition-colors`;
@@ -120,50 +146,45 @@ export default function Login() {
             ))}
           </div>
 
-          {/* ── VOTER FLOW ── */}
+          {/* ── VOTER STEP 1: GOOGLE SIGN-IN ── */}
           {mode === 'voter' && step === 'credentials' && (
-            <form onSubmit={handleVoterRequest} className="flex flex-col gap-4">
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: textMuted }}>
-                  Email address
-                </label>
-                <div className="relative">
-                  <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: textMuted }} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => { setEmail(e.target.value); clearError(); setCustomError(null); }}
-                    placeholder="you@gmail.com"
-                    className={`${inputClass} pl-10`}
-                    style={inputStyle(!!activeError)}
-                    required
-                  />
-                </div>
+            <div className="flex flex-col gap-5">
+              <div className="text-center">
+                <p className="text-sm font-medium mb-1" style={{ color: textPrimary }}>
+                  Sign in with your student Google account
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: textMuted }}>
+                  Only students on the official voter roll can vote. You will confirm
+                  your roll number on the next step.
+                </p>
               </div>
+
+              {/* Google renders its own button here */}
+              <div className="flex justify-center min-h-[44px]" ref={googleButtonRef} />
+
+              {!GOOGLE_CLIENT_ID && (
+                <p className="text-xs px-3 py-2 rounded-lg text-center" style={{ background: 'rgba(255,77,141,0.1)', color: '#FF4D8D' }}>
+                  Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID and rebuild.
+                </p>
+              )}
+
+              {submitting && (
+                <p className="text-xs text-center" style={{ color: textMuted }}>
+                  Verifying your account…
+                </p>
+              )}
 
               {activeError && (
                 <p className="text-xs px-3 py-2 rounded-lg" style={{ background: 'rgba(255,77,141,0.1)', color: '#FF4D8D' }}>
                   {activeError}
                 </p>
               )}
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:scale-105 mt-1"
-                style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A' }}
-              >
-                Send OTP →
-              </button>
-
-              <p className="text-xs text-center" style={{ color: textMuted }}>
-                Any valid @gmail.com email can request an OTP. This preview displays the code until email delivery is configured.
-              </p>
-            </form>
+            </div>
           )}
 
-          {/* ── OTP STEP ── */}
-          {mode === 'voter' && step === 'otp' && (
-            <form onSubmit={handleOtpVerify} className="flex flex-col gap-4">
+          {/* ── VOTER STEP 2: STUDENT ROLL NUMBER ── */}
+          {mode === 'voter' && step === 'roll' && (
+            <form onSubmit={handleRollVerify} className="flex flex-col gap-4">
               <button
                 type="button"
                 onClick={handleBackToCredentials}
@@ -173,39 +194,41 @@ export default function Login() {
                 <ArrowLeft size={14} /> Back
               </button>
 
-              {/* Show OTP for demo purposes */}
               <div
                 className="rounded-xl p-4 text-center border"
-                style={{ background: 'rgba(212,175,55,0.06)', borderColor: 'rgba(212,175,55,0.25)' }}
+                style={{ background: 'rgba(0,201,167,0.06)', borderColor: 'rgba(0,201,167,0.25)' }}
               >
-                <p className="text-xs mb-1" style={{ color: textMuted }}>
-                  OTP sent to <strong>{pendingOtp?.email || email}</strong>
+                <p className="text-xs mb-1" style={{ color: textMuted }}>Signed in as</p>
+                <p className="text-sm font-semibold" style={{ color: '#00C9A7' }}>
+                  {pendingVoter?.email}
                 </p>
-                <p className="text-xs mb-2" style={{ color: textMuted }}>
-                  Preview mode — your code is shown below
-                </p>
-                <p className="font-mono font-bold text-3xl tracking-widest" style={{ color: '#D4AF37' }}>
-                  {pendingOtp?.code || '893812'}
-                </p>
+                {pendingVoter?.name && (
+                  <p className="text-xs mt-1" style={{ color: textMuted }}>{pendingVoter.name}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: textMuted }}>
-                  Enter 6-digit OTP
+                  Your student roll number
                 </label>
                 <div className="relative">
-                  <KeyRound size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: textMuted }} />
+                  <IdCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: textMuted }} />
                   <input
                     type="text"
-                    value={otp}
-                    onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); clearError(); }}
-                    placeholder="000000"
-                    maxLength={6}
-                    className={`${inputClass} pl-10 font-mono tracking-widest text-center text-lg`}
+                    value={rollNumber}
+                    onChange={e => { setRollNumber(e.target.value); clearError(); }}
+                    placeholder="e.g. MTU-2026-0042"
+                    className={`${inputClass} pl-10 font-mono tracking-wide`}
                     style={inputStyle(!!loginError)}
+                    autoFocus
                     required
                   />
                 </div>
+                {pendingVoter && (
+                  <p className="text-xs mt-2" style={{ color: textMuted }}>
+                    {pendingVoter.attemptsLeft} attempt{pendingVoter.attemptsLeft === 1 ? '' : 's'} remaining
+                  </p>
+                )}
               </div>
 
               {loginError && (
@@ -216,12 +239,12 @@ export default function Login() {
 
               <button
                 type="submit"
-                disabled={otp.length !== 6}
-                className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={submitting || !rollNumber.trim()}
+                className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A' }}
               >
                 <ShieldCheck size={15} className="inline mr-2" />
-                Verify &amp; Sign In
+                {submitting ? 'Verifying…' : 'Verify & Start Voting'}
               </button>
             </form>
           )}
@@ -280,10 +303,11 @@ export default function Login() {
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:scale-105 mt-1"
+                disabled={submitting}
+                className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:scale-105 mt-1 disabled:opacity-60 disabled:hover:scale-100 disabled:cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A' }}
               >
-                Sign In as Admin
+                {submitting ? 'Signing In…' : 'Sign In as Admin'}
               </button>
             </form>
           )}

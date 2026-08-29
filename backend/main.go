@@ -3,16 +3,31 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"time"
+	"strconv"
 	"strings"
+	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/stdlib"
 )
+
+// uniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505).
+//
+// This is how the one-vote-per-category rule is detected: there is no
+// application-level duplicate check, so the ballots.one_vote_per_category
+// constraint firing here is the only thing preventing double voting.
+func uniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 // --- STRUCTS ---
 
@@ -120,8 +135,14 @@ func isAllowedOrigin(origin string) bool {
 
 // --- HANDLERS ---
 
+// CastVoteHandler records a ballot for the AUTHENTICATED voter.
+//
+// Voter identity is taken from the session (the `voter` argument), not from the
+// request body. Any voterId/voterEmail/voterName the client sends is ignored:
+// trusting those let a caller vote as anyone, which defeated
+// one-vote-per-category entirely.
 func CastVoteHandler(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return requireVoter(db, func(w http.ResponseWriter, r *http.Request, voter Voter) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -134,17 +155,52 @@ func CastVoteHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		log.Printf("Incoming Vote Attempt: %+v\n", payload)
+		if payload.CandidateID == "" || payload.Category == "" {
+			http.Error(w, "candidateId and category are required", http.StatusBadRequest)
+			return
+		}
+
+		// Voting must be open. Checked server-side because the frontend's
+		// disabled buttons are only a UI affordance.
+		var status string
+		if err := db.QueryRow("SELECT status FROM election_settings WHERE id = 1").Scan(&status); err != nil {
+			log.Printf("Election status lookup error: %v\n", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if status != "open" {
+			http.Error(w, "closed", http.StatusForbidden)
+			return
+		}
+
+		// The candidate must exist, be active, and belong to the category the
+		// vote claims — otherwise a crafted request could move a vote between
+		// categories and dodge the per-category unique constraint.
+		var candidateCategory string
+		var isActive bool
+		if err := db.QueryRow(
+			"SELECT category, is_active FROM candidates WHERE id = $1", payload.CandidateID,
+		).Scan(&candidateCategory, &isActive); err != nil {
+			http.Error(w, "unknown_candidate", http.StatusBadRequest)
+			return
+		}
+		if !isActive || candidateCategory != payload.Category {
+			http.Error(w, "invalid_candidate_for_category", http.StatusBadRequest)
+			return
+		}
+
+		voterID := "email:" + voter.Email
+		log.Printf("Vote attempt by %s for %s (%s)\n", voter.Email, payload.CandidateID, payload.Category)
 
 		ballotID := uuid.New().String()
-		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
 
-		_, err := db.Exec(query, ballotID, payload.VoterID, payload.VoterEmail, payload.VoterName, payload.CandidateID, payload.Category, time.Now())
+		_, err := db.Exec(query, ballotID, voterID, voter.Email, voter.Name, payload.CandidateID, payload.Category, time.Now())
 
 		if err != nil {
-			log.Printf("MySQL Insert Error: %v\n", err)
+			log.Printf("Postgres Insert Error: %v\n", err)
 
-			if len(err.Error()) >= 10 && err.Error()[:10] == "Error 1062" {
+			if uniqueViolation(err) {
 				http.Error(w, "already_voted", http.StatusConflict)
 				return
 			}
@@ -152,11 +208,11 @@ func CastVoteHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		log.Printf("Vote successfully recorded for %s\n", payload.VoterName)
+		log.Printf("Vote successfully recorded for %s\n", voter.Email)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
-	}
+	})
 }
 
 func GetAllBallotsHandler(db *sql.DB) http.HandlerFunc {
@@ -410,7 +466,7 @@ func CandidatesHandler(db *sql.DB) http.HandlerFunc {
 					photo,
 					is_active
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			`,
 				c.ID,
 				c.Name,
@@ -474,16 +530,16 @@ func CandidatesHandler(db *sql.DB) http.HandlerFunc {
 			result, err := db.Exec(`
 				UPDATE candidates
 				SET
-					name = ?,
-					nickname = ?,
-					department = ?,
-					academic_year = ?,
-					category = ?,
-					bio = ?,
-					talent = ?,
-					photo = ?,
-					is_active = ?
-				WHERE id = ?
+					name = $1,
+					nickname = $2,
+					department = $3,
+					academic_year = $4,
+					category = $5,
+					bio = $6,
+					talent = $7,
+					photo = $8,
+					is_active = $9
+				WHERE id = $10
 			`,
 				c.Name,
 				c.Nickname,
@@ -601,7 +657,7 @@ func ElectionHandler(db *sql.DB) http.HandlerFunc {
 			if e.Type != "" {
 				_, err := db.Exec(`
 					UPDATE election_settings
-					SET type = ?
+					SET type = $1
 					WHERE id = 1
 				`, e.Type)
 
@@ -623,7 +679,7 @@ func ElectionHandler(db *sql.DB) http.HandlerFunc {
 			// Admin changed Election Status
 			_, err := db.Exec(`
 				UPDATE election_settings
-				SET status = ?, opens_at = ?, closes_at = ?
+				SET status = $1, opens_at = $2, closes_at = $3
 				WHERE id = 1
 			`, e.Status, e.OpensAt, e.ClosesAt)
 
@@ -669,7 +725,7 @@ func AuditHandler(db *sql.DB) http.HandlerFunc {
 			var l AuditLog
 			json.NewDecoder(r.Body).Decode(&l)
 			logID := uuid.New().String()
-			db.Exec("INSERT INTO audit_logs (id, actor, action, details, created_at) VALUES (?, ?, ?, ?, ?)",
+			db.Exec("INSERT INTO audit_logs (id, actor, action, details, created_at) VALUES ($1, $2, $3, $4, $5)",
 				logID, l.Actor, l.Action, l.Details, time.Now())
 			json.NewEncoder(w).Encode(map[string]string{"message": "Audit recorded"})
 			return
@@ -680,31 +736,82 @@ func AuditHandler(db *sql.DB) http.HandlerFunc {
 // --- MAIN FUNCTION ---
 
 func main() {
+ // Supabase connection string. Use the CONNECTION POOLER (port 6543,
+ // transaction mode), not the direct connection on 5432 — Supabase caps
+ // direct connections and a burst of voters will exhaust them.
+ //
+ //   postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+ //
+ // No credentials are hardcoded: the server refuses to start without
+ // DATABASE_URL rather than silently falling back to a dev database.
  dsn := os.Getenv("DATABASE_URL")
  if dsn == "" {
-  dsn = "root:root10&Htet@tcp(127.0.0.1:3306)/mtu_voting?parseTime=true"
+  log.Fatal("DATABASE_URL is not set. Export your Supabase pooler connection string (port 6543).")
  }
 
- db, err := sql.Open("mysql", dsn)
+ // Supabase's transaction pooler multiplexes client connections across shared
+ // backends, so pgx's default prepared-statement cache breaks: a statement
+ // prepared on one physical connection is not visible on the next, and reusing
+ // a cached name raises "prepared statement already exists" (SQLSTATE 42P05).
+ // Simple protocol sends each query unprepared, which is what the pooler needs.
+ config, err := pgx.ParseConfig(dsn)
  if err != nil {
-  log.Fatalf("Error connecting to database: %v", err)
+  log.Fatalf("Invalid DATABASE_URL: %v", err)
  }
+ config.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
+ db := stdlib.OpenDB(*config)
  defer db.Close()
+
+ // Bound the pool explicitly. On serverless (Vercel Fluid Compute) MANY
+ // instances run concurrently and each keeps its own pool, so a per-instance
+ // limit of 10 would multiply out and exhaust Supabase's pooler. Keep it small
+ // and let the pooler do the multiplexing.
+ //
+ // Override with DB_MAX_CONNS when running as a single long-lived process,
+ // where a larger pool is both safe and faster.
+ maxConns := 3
+ if v := os.Getenv("DB_MAX_CONNS"); v != "" {
+  if n, err := strconv.Atoi(v); err == nil && n > 0 {
+   maxConns = n
+  }
+ }
+ db.SetMaxOpenConns(maxConns)
+ db.SetMaxIdleConns(1)
+ // Short lifetime so idle instances release connections back to the pooler.
+ db.SetConnMaxLifetime(1 * time.Minute)
+ db.SetConnMaxIdleTime(30 * time.Second)
 
  if err := db.Ping(); err != nil {
   log.Fatalf("Error verifying database connection: %v", err)
  }
- fmt.Println("Successfully connected to MySQL database!")
+ fmt.Println("Successfully connected to Supabase Postgres!")
 
  // Create a router
  mux := http.NewServeMux()
 
- // Register handlers directly without individual CORS wrappers
+ // --- Public endpoints ---
+ mux.HandleFunc("/api/admin/login", LoginHandler(db))
+ mux.HandleFunc("/api/admin/logout", LogoutHandler(db))
+ mux.HandleFunc("/api/tally", TallyHandler(db))
+
+ // --- Voter authentication (Google OAuth + student roll number) ---
+ mux.HandleFunc("/api/auth/google", GoogleLoginHandler(db))
+ mux.HandleFunc("/api/auth/verify-roll", VerifyRollHandler(db))
+ mux.HandleFunc("/api/auth/logout", VoterLogoutHandler(db))
+
+ // --- Voter-only endpoints (identity comes from the session, not the body) ---
  mux.HandleFunc("/api/votes", CastVoteHandler(db))
- mux.HandleFunc("/api/ballots", GetAllBallotsHandler(db))
- mux.HandleFunc("/api/candidates", CandidatesHandler(db))
- mux.HandleFunc("/api/election", ElectionHandler(db))
- mux.HandleFunc("/api/audit", AuditHandler(db))
+ mux.HandleFunc("/api/my-ballots", MyBallotsHandler(db))
+
+ // --- Admin-only endpoints ---
+ // GET leaks voter PII and DELETE wipes the election, so both need auth.
+ mux.HandleFunc("/api/ballots", requireAdmin(db, GetAllBallotsHandler(db)))
+ mux.HandleFunc("/api/audit", requireAdmin(db, AuditHandler(db)))
+
+ // --- Mixed: public reads, admin writes ---
+ mux.HandleFunc("/api/candidates", adminForMethods(db, CandidatesHandler(db), "POST", "PUT"))
+ mux.HandleFunc("/api/election", adminForMethods(db, ElectionHandler(db), "PUT"))
 
  port := os.Getenv("PORT")
  if port == "" {
