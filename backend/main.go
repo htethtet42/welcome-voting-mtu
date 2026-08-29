@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +39,10 @@ type VotePayload struct {
 	VoterName   string `json:"voterName"`
 	CandidateID string `json:"candidateId"`
 	Category    string `json:"category"`
+	// Anonymous asks that this ballot be recorded without the voter's name
+	// or email. Set per ballot, so a voter can be anonymous in one category
+	// and named in another.
+	Anonymous bool `json:"anonymous"`
 }
 
 type BallotRecord struct {
@@ -47,6 +53,15 @@ type BallotRecord struct {
 	CandidateID string    `json:"candidateId"`
 	Category    string    `json:"category"`
 	CreatedAt   time.Time `json:"createdAt"`
+	IsAnonymous bool      `json:"isAnonymous"`
+}
+
+// anonPseudonym derives a stable, non-reversible label for an anonymous
+// voter, so the admin console can still group that person's ballots together
+// without learning who they are.
+func anonPseudonym(voterID string) string {
+	sum := sha256.Sum256([]byte("mtu-anon:" + voterID))
+	return "anon-" + hex.EncodeToString(sum[:])[:10]
 }
 
 type Candidate struct {
@@ -190,12 +205,24 @@ func CastVoteHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		voterID := "email:" + voter.Email
-		log.Printf("Vote attempt by %s for %s (%s)\n", voter.Email, payload.CandidateID, payload.Category)
+
+		// An anonymous ballot stores no name or email at all — the columns are
+		// left empty rather than populated and hidden at display time, so the
+		// identity is never written to the ballots table.
+		//
+		// voter_id is still stored: one_vote_per_category depends on it.
+		recordedEmail, recordedName := voter.Email, voter.Name
+		if payload.Anonymous {
+			recordedEmail, recordedName = "", ""
+		}
+
+		log.Printf("Vote attempt by %s for %s (%s, anonymous=%t)\n",
+			voter.Email, payload.CandidateID, payload.Category, payload.Anonymous)
 
 		ballotID := uuid.New().String()
-		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
+		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at, is_anonymous) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
 
-		_, err := db.Exec(query, ballotID, voterID, voter.Email, voter.Name, payload.CandidateID, payload.Category, time.Now())
+		_, err := db.Exec(query, ballotID, voterID, recordedEmail, recordedName, payload.CandidateID, payload.Category, time.Now(), payload.Anonymous)
 
 		if err != nil {
 			log.Printf("Postgres Insert Error: %v\n", err)
@@ -231,7 +258,8 @@ func GetAllBallotsHandler(db *sql.DB) http.HandlerFunc {
 					voter_name,
 					candidate_id,
 					category,
-					created_at
+					created_at,
+					is_anonymous
 				FROM ballots
 				ORDER BY created_at DESC
 			`)
@@ -261,6 +289,7 @@ func GetAllBallotsHandler(db *sql.DB) http.HandlerFunc {
 					&b.CandidateID,
 					&b.Category,
 					&b.CreatedAt,
+					&b.IsAnonymous,
 				)
 
 				if err != nil {
@@ -274,6 +303,14 @@ func GetAllBallotsHandler(db *sql.DB) http.HandlerFunc {
 						http.StatusInternalServerError,
 					)
 					return
+				}
+
+				// Replace the voter id on anonymous ballots too: it is derived
+				// from the email, so returning it would defeat the point.
+				if b.IsAnonymous {
+					b.VoterID = anonPseudonym(b.VoterID)
+					b.VoterName = "Anonymous"
+					b.VoterEmail = ""
 				}
 
 				ballots = append(ballots, b)

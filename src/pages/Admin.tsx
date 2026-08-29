@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
-  Shield, Trophy, Users, BarChart3, FileText,
+  Shield, Trophy, Users, BarChart3, FileText, EyeOff,
   Download, RefreshCw, Plus, Pencil, CheckCircle2,
   XCircle, AlertTriangle, X, Check, Activity, Database, List
 } from 'lucide-react';
@@ -133,9 +133,18 @@ export default function Admin() {
   const turnout = participatingVoterCount > 0 ? Math.round((voteRecords.length / (participatingVoterCount * 6)) * 100) : 0;
   
   const ballotRows = useMemo(() => {
-    const byVoter = new Map<string, { name: string; email: string; votes: Partial<Record<Category, string>>; lastVote: Date }>();
+    const byVoter = new Map<string, { id: string; name: string; email: string; anonymous: boolean; votes: Partial<Record<Category, string>>; lastVote: Date }>();
     voteRecords.forEach(record => {
-      const row = byVoter.get(record.voterId) ?? { name: record.voterName, email: record.voterEmail, votes: {}, lastVote: record.createdAt };
+      // Keyed by voterId, not email: anonymous ballots carry no email, so
+      // keying on that would collapse every anonymous voter into one row.
+      const row = byVoter.get(record.voterId) ?? {
+        id: record.voterId,
+        name: record.voterName || 'Anonymous',
+        email: record.voterEmail,
+        anonymous: !!record.isAnonymous,
+        votes: {},
+        lastVote: record.createdAt,
+      };
       row.votes[record.category] = candidates.find(candidate => candidate.id === record.candidateId)?.name ?? 'Removed candidate';
       if (new Date(record.createdAt) > new Date(row.lastVote)) row.lastVote = record.createdAt;
       byVoter.set(record.voterId, row);
@@ -412,9 +421,17 @@ export default function Admin() {
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: border }}>
                     {ballotRows.length === 0 ? <tr><td colSpan={9} className="px-6 py-12 text-center text-sm" style={{ color: textMuted }}>Awaiting network activity. No ballots recorded.</td></tr> : ballotRows.map(row => (
-                      <tr key={row.email} className="transition-colors hover:bg-white/5">
-                        <td className="px-6 py-4 font-bold" style={{ color: textPrimary }}>{row.name}</td>
-                        <td className="px-6 py-4 font-mono text-xs opacity-70" style={{ color: textPrimary }}>{row.email}</td>
+                      <tr key={row.id} className="transition-colors hover:bg-white/5">
+                        <td className="px-6 py-4 font-bold" style={{ color: row.anonymous ? '#00C9A7' : textPrimary }}>
+                          {row.anonymous ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <EyeOff size={13} /> Anonymous
+                            </span>
+                          ) : row.name}
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs opacity-70" style={{ color: textPrimary }}>
+                          {row.anonymous ? <span style={{ color: textMuted }}>—</span> : row.email}
+                        </td>
                         {(['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'] as Category[]).map(category => (
                           <td key={category} className="px-6 py-4">
                             {row.votes[category] ? (

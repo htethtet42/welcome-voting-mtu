@@ -28,7 +28,8 @@ interface ElectionContextType {
   castVote: (
     candidateId: string,
     category: Category,
-    voter: { id: string; name: string; email: string }
+    voter: { id: string; name: string; email: string },
+    anonymous?: boolean
   ) => Promise<
     'success' | 'already_voted' | 'closed' | 'not_eligible' | 'error'
   >;
@@ -570,7 +571,8 @@ export function ElectionProvider({
         id: string;
         name: string;
         email: string;
-      }
+      },
+      anonymous: boolean = false
     ) => {
       if (election.status !== 'open') {
         return 'closed';
@@ -602,7 +604,7 @@ export function ElectionProvider({
               'Bypass-Tunnel-Reminder': 'true',
               ...voterHeaders(),
             },
-            body: JSON.stringify({ candidateId, category }),
+            body: JSON.stringify({ candidateId, category, anonymous }),
           }
         );
 
@@ -627,8 +629,9 @@ export function ElectionProvider({
         const newRecord: VoteRecord = {
           id: crypto.randomUUID(),
           voterId: voter.id,
-          voterEmail: voter.email,
-          voterName: voter.name,
+          voterEmail: anonymous ? '' : voter.email,
+          voterName: anonymous ? 'Anonymous' : voter.name,
+          isAnonymous: anonymous,
           candidateId,
           category,
           createdAt: new Date(),

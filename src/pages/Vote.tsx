@@ -20,6 +20,7 @@ export default function Vote() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [qrId, setQrId] = useState<string | null>(null);
+  const [anonymous, setAnonymous] = useState(false);
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
   // Modern Prestige Color Palette
@@ -68,13 +69,19 @@ export default function Vote() {
     if (!user) return;
     
     // THE FIX: We must add 'await' here because we are now talking to a real Go server!
-    const result = await castVote(confirmId, confirmCandidate.category, user);
+    const result = await castVote(confirmId, confirmCandidate.category, user, anonymous);
     
     setSubmitting(false);
     setConfirmId(null);
+    const wasAnonymous = anonymous;
+    setAnonymous(false);
     
     if (result === 'success') {
-      setSuccessMsg(`Official Ballot Cast: ${confirmCandidate.name} ✓`);
+      setSuccessMsg(
+        wasAnonymous
+          ? `Anonymous ballot cast: ${confirmCandidate.name} ✓`
+          : `Official Ballot Cast: ${confirmCandidate.name} ✓`
+      );
       setTimeout(() => setSuccessMsg(null), 5000);
     } else if (result === 'already_voted') {
       setSuccessMsg('You have already verified a vote in this category.');
@@ -332,6 +339,42 @@ export default function Vote() {
         </p>
       </div>
 
+      {/* Anonymous voting toggle */}
+      <button
+        type="button"
+        onClick={() => setAnonymous(v => !v)}
+        disabled={submitting}
+        className="w-full flex items-start gap-3 text-left p-4 rounded-xl mb-4 transition-all disabled:opacity-60"
+        style={{
+          background: anonymous
+            ? 'rgba(0,201,167,0.10)'
+            : darkMode ? 'rgba(255,255,255,0.04)' : '#F9FAFB',
+          border: `1px solid ${anonymous ? 'rgba(0,201,167,0.45)' : darkMode ? border : '#E5E7EB'}`,
+        }}
+      >
+        <span
+          className="mt-0.5 w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center transition-all"
+          style={{
+            background: anonymous ? '#00C9A7' : 'transparent',
+            border: `1.5px solid ${anonymous ? '#00C9A7' : darkMode ? '#4B5563' : '#9CA3AF'}`,
+          }}
+        >
+          {anonymous && <Check size={13} strokeWidth={3} style={{ color: '#04241F' }} />}
+        </span>
+        <span>
+          <span
+            className="block text-sm font-bold mb-0.5"
+            style={{ color: anonymous ? '#00C9A7' : textPrimary }}
+          >
+            Vote anonymously
+          </span>
+          <span className="block text-xs leading-relaxed" style={{ color: textMuted }}>
+            Your name and email are not recorded with this ballot — organizers see
+            only “Anonymous”. Your vote still counts the same.
+          </span>
+        </span>
+      </button>
+
       {/* Warning Alert Box - Dynamic Light/Dark Contrast */}
       <div 
         className="flex items-center gap-3 text-left text-xs p-4 rounded-xl mb-8 font-medium" 
@@ -350,7 +393,7 @@ export default function Vote() {
       {/* Buttons */}
       <div className="flex gap-4">
         <button 
-          onClick={() => setConfirmId(null)} 
+          onClick={() => { setConfirmId(null); setAnonymous(false); }} 
           disabled={submitting} 
           className="flex-1 py-4 rounded-xl text-sm font-bold border transition-all hover:opacity-80" 
           style={{ 
@@ -374,7 +417,7 @@ export default function Vote() {
           {submitting ? (
             <><Clock size={16} className="animate-spin" /> Sealing...</>
           ) : (
-            'Confirm & Seal Ballot'
+            anonymous ? 'Confirm Anonymously' : 'Confirm & Seal Ballot'
           )}
         </button>
       </div>

@@ -50,6 +50,8 @@ export interface VoteRecord {
   candidateId: string;
   category: Category;
   createdAt: Date;
+  /** True when the voter asked not to be identified with this ballot. */
+  isAnonymous?: boolean;
 }
 
 export interface ElectionState {
