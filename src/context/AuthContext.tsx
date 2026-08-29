@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoginError(
             'This account is not on the student voter roll. Use the email registered with the university, or contact the event organizers.'
           );
+          // (Only reachable when the backend runs with VOTER_ELIGIBILITY=roll.)
         } else if (response.status === 503) {
           setLoginError('Voter sign-in is not configured yet. Contact the organizers.');
         } else {
@@ -128,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (payload?.error === 'incorrect_roll_number') {
           const left = payload.attemptsLeft ?? 0;
           setLoginError(
-            `Incorrect roll number. ${left} attempt${left === 1 ? '' : 's'} remaining.`
+            `That doesn't look like a valid roll number. Use the format III.BE-CEIT-23. ${left} attempt${left === 1 ? '' : 's'} remaining.`
           );
           setPendingVoter(prev => (prev ? { ...prev, attemptsLeft: left } : prev));
         } else {

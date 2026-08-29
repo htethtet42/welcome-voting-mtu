@@ -100,21 +100,46 @@ func GoogleLoginHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Is this address on the official roll?
+		googleName, _ := tokenInfo.Claims["name"].(string)
+
 		var name string
 		err = db.QueryRow(
 			"SELECT name FROM eligible_voters WHERE email = $1", email,
 		).Scan(&name)
 
-		if err != nil {
-			if err != sql.ErrNoRows {
-				log.Printf("Eligibility lookup error: %v\n", err)
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
+		switch {
+		case err == nil:
+			// Already known — nothing to do.
+
+		case err != sql.ErrNoRows:
+			log.Printf("Eligibility lookup error: %v\n", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+
+		case eligibilityMode() == "roll":
+			// Real-election mode: the registrar's list is authoritative.
 			log.Printf("Rejected non-eligible voter: %s\n", email)
 			http.Error(w, "not_eligible", http.StatusForbidden)
 			return
+
+		default:
+			// Demo mode: admit any verified Google account. The row is created
+			// now (with an empty roll number) so the challenge and session
+			// foreign keys have something to point at; the roll number is
+			// filled in once it passes the format check in step 2.
+			name = googleName
+			if name == "" {
+				name = strings.SplitN(email, "@", 2)[0]
+			}
+			if _, err := db.Exec(
+				"INSERT INTO eligible_voters (email, student_id, name) VALUES ($1, '', $2) ON CONFLICT (email) DO NOTHING",
+				email, name,
+			); err != nil {
+				log.Printf("Voter registration error: %v\n", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Registered new voter (demo mode): %s\n", email)
 		}
 
 		challenge, err := newSessionToken()
@@ -212,7 +237,17 @@ func VerifyRollHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		if normalizeRoll(storedRoll) != normalizeRoll(payload.StudentID) {
+		// How the roll number is judged depends on the mode:
+		//   format — must merely look like a roll number (demo).
+		//   roll   — must match the registrar's record exactly.
+		var accepted bool
+		if eligibilityMode() == "roll" {
+			accepted = normalizeRoll(storedRoll) == normalizeRoll(payload.StudentID)
+		} else {
+			accepted = validRollFormat(payload.StudentID)
+		}
+
+		if !accepted {
 			// Count the failure before responding, so the cap cannot be evaded
 			// by abandoning the response.
 			db.Exec(
@@ -230,7 +265,19 @@ func VerifyRollHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Both factors passed — issue the voting session.
+		// In demo mode the supplied roll number becomes this voter's record, so
+		// it shows on their ballot and in the admin ledger.
+		if eligibilityMode() != "roll" {
+			roll := strings.TrimSpace(payload.StudentID)
+			if _, err := db.Exec(
+				"UPDATE eligible_voters SET student_id = $1 WHERE email = $2", roll, email,
+			); err != nil {
+				log.Printf("Roll update error: %v\n", err)
+			}
+			storedRoll = roll
+		}
+
+		// Checks passed — issue the voting session.
 		token, err := newSessionToken()
 		if err != nil {
 			log.Printf("Voter token generation error: %v\n", err)

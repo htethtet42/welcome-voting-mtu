@@ -154,8 +154,7 @@ export default function Login() {
                   Sign in with your student Google account
                 </p>
                 <p className="text-xs leading-relaxed" style={{ color: textMuted }}>
-                  Only students on the official voter roll can vote. You will confirm
-                  your roll number on the next step.
+                  You will enter your student roll number on the next step.
                 </p>
               </div>
 
@@ -217,18 +216,17 @@ export default function Login() {
                     type="text"
                     value={rollNumber}
                     onChange={e => { setRollNumber(e.target.value); clearError(); }}
-                    placeholder="e.g. MTU-2026-0042"
+                    placeholder="e.g. III.BE-CEIT-23"
                     className={`${inputClass} pl-10 font-mono tracking-wide`}
                     style={inputStyle(!!loginError)}
                     autoFocus
                     required
                   />
                 </div>
-                {pendingVoter && (
-                  <p className="text-xs mt-2" style={{ color: textMuted }}>
-                    {pendingVoter.attemptsLeft} attempt{pendingVoter.attemptsLeft === 1 ? '' : 's'} remaining
-                  </p>
-                )}
+                <p className="text-xs mt-2" style={{ color: textMuted }}>
+                  Format: year.degree-department-number — e.g.{' '}
+                  <span className="font-mono" style={{ color: '#D4AF37' }}>III.BE-CEIT-23</span>
+                </p>
               </div>
 
               {loginError && (
