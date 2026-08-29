@@ -790,28 +790,50 @@ func main() {
  // Create a router
  mux := http.NewServeMux()
 
+ // Routes are registered under BOTH "/api/x" and "/x".
+ //
+ // Standalone (local, or its own Vercel project) the server receives the full
+ // "/api/..." path. Mounted as a Vercel Service behind a
+ // rewrite of "/api/(.*)", the prefix may be stripped before it reaches us.
+ // Registering both means the same binary works either way.
+ register := func(path string, h http.HandlerFunc) {
+  mux.HandleFunc("/api"+path, h)
+  mux.HandleFunc(path, h)
+ }
+
  // --- Public endpoints ---
- mux.HandleFunc("/api/admin/login", LoginHandler(db))
- mux.HandleFunc("/api/admin/logout", LogoutHandler(db))
- mux.HandleFunc("/api/tally", TallyHandler(db))
+ register("/admin/login", LoginHandler(db))
+ register("/admin/logout", LogoutHandler(db))
+ register("/tally", TallyHandler(db))
 
  // --- Voter authentication (Google OAuth + student roll number) ---
- mux.HandleFunc("/api/auth/google", GoogleLoginHandler(db))
- mux.HandleFunc("/api/auth/verify-roll", VerifyRollHandler(db))
- mux.HandleFunc("/api/auth/logout", VoterLogoutHandler(db))
+ register("/auth/google", GoogleLoginHandler(db))
+ register("/auth/verify-roll", VerifyRollHandler(db))
+ register("/auth/logout", VoterLogoutHandler(db))
 
  // --- Voter-only endpoints (identity comes from the session, not the body) ---
- mux.HandleFunc("/api/votes", CastVoteHandler(db))
- mux.HandleFunc("/api/my-ballots", MyBallotsHandler(db))
+ register("/votes", CastVoteHandler(db))
+ register("/my-ballots", MyBallotsHandler(db))
 
  // --- Admin-only endpoints ---
  // GET leaks voter PII and DELETE wipes the election, so both need auth.
- mux.HandleFunc("/api/ballots", requireAdmin(db, GetAllBallotsHandler(db)))
- mux.HandleFunc("/api/audit", requireAdmin(db, AuditHandler(db)))
+ register("/ballots", requireAdmin(db, GetAllBallotsHandler(db)))
+ register("/audit", requireAdmin(db, AuditHandler(db)))
 
  // --- Mixed: public reads, admin writes ---
- mux.HandleFunc("/api/candidates", adminForMethods(db, CandidatesHandler(db), "POST", "PUT"))
- mux.HandleFunc("/api/election", adminForMethods(db, ElectionHandler(db), "PUT"))
+ register("/candidates", adminForMethods(db, CandidatesHandler(db), "POST", "PUT"))
+ register("/election", adminForMethods(db, ElectionHandler(db), "PUT"))
+
+ // Health check for deployment verification.
+ register("/health", func(w http.ResponseWriter, r *http.Request) {
+  w.Header().Set("Content-Type", "application/json")
+  if err := db.Ping(); err != nil {
+   w.WriteHeader(http.StatusServiceUnavailable)
+   json.NewEncoder(w).Encode(map[string]string{"status": "db_unreachable"})
+   return
+  }
+  json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+ })
 
  port := os.Getenv("PORT")
  if port == "" {
