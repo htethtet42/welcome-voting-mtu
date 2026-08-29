@@ -1,0 +1,13 @@
+# Never upload local environment files to Vercel.
+#
+# Vite inlines VITE_* at build time, so a local .env present during a CLI
+# deploy poisons the production bundle — it baked http://localhost:8081/api
+# into the deployed app. Environment values must come from the Vercel project
+# settings, not from this machine.
+.env
+.env.*
+!.env.example
+
+node_modules
+dist
+.git

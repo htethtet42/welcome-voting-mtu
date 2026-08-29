@@ -1,0 +1,5 @@
+# Never upload local environment files to Vercel.
+# backend/.env contains the database password; it must only exist locally.
+.env
+.env.*
+!.env.example
