@@ -165,10 +165,33 @@ export default function Vote() {
             )}
           </div>
           <div className="hidden sm:block w-px h-4" style={{ background: border }}></div>
-          <div className="text-xs font-mono">
-            <span style={{ color: textMuted }}>Voter ID: </span>
-            <span className="font-bold" style={{ color: '#D4AF37' }}>{user?.studentId}</span>
-          </div>
+          {user?.role === 'judge' ? (
+            /* A judge sees their multiplier for the whole time they are
+               choosing, not at the reveal. Someone casting a vote worth ten
+               students' should know it while they decide.
+
+               Royal names the role, gold names the weight — two signals, two
+               colours, never merged. See DESIGN.md. */
+            <div className="flex items-center gap-2">
+              <span
+                className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(59,130,246,0.11)', border: '1px solid rgba(59,130,246,0.32)', color: darkMode ? '#60A5FA' : '#2563C4' }}
+              >
+                Judge
+              </span>
+              <span
+                className="font-mono font-bold text-[11px] px-2.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(212,175,55,0.13)', border: '1px solid rgba(212,175,55,0.4)', color: '#E8C84A' }}
+              >
+                {user.voteWeight ?? 1}&times; weight
+              </span>
+            </div>
+          ) : (
+            <div className="text-xs font-mono">
+              <span style={{ color: textMuted }}>Voter ID: </span>
+              <span className="font-bold" style={{ color: '#D4AF37' }}>{user?.studentId}</span>
+            </div>
+          )}
         </div>
       </div>
 

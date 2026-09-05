@@ -103,5 +103,39 @@ export function voterHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+const JUDGE_REQUEST_KEY = 'mtu_judge_request';
+
+/**
+ * Token for a pending judge access request.
+ *
+ * Persisted so a teacher who reloads, or whose phone drops the tab while they
+ * wait, returns to their place in the queue instead of starting over and taking
+ * a second code from the organiser. It grants nothing on its own — it only
+ * reads the status of a request an admin has yet to decide.
+ */
+export function getJudgeRequestToken(): string | null {
+  try {
+    return sessionStorage.getItem(JUDGE_REQUEST_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setJudgeRequestToken(token: string): void {
+  try {
+    sessionStorage.setItem(JUDGE_REQUEST_KEY, token);
+  } catch {
+    /* private browsing — the wait simply won't survive a reload */
+  }
+}
+
+export function clearJudgeRequestToken(): void {
+  try {
+    sessionStorage.removeItem(JUDGE_REQUEST_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Google OAuth client ID, from Google Cloud Console. */
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
