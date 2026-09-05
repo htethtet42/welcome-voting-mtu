@@ -523,7 +523,17 @@ export default function Admin() {
                   return (
                     <div key={cat} className="group rounded-3xl overflow-hidden backdrop-blur-md transition-all hover:scale-[1.02]" style={{ background: cardBg, border: `1px solid ${meta.borderColor}` }}>
                       <div className="relative aspect-video overflow-hidden bg-gray-900">
-                        <img src={winner.photo ?? winner.photoUrl} alt={winner.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80" />
+                        {/* These are portrait photos in a 16:9 frame, so
+                            object-cover has to crop somewhere. The default
+                            50% 50% crops top and bottom equally and takes the
+                            head with it. Biasing to 20% keeps the face in
+                            frame with a little headroom. Hover is untouched. */}
+                        <img
+                          src={winner.photo ?? winner.photoUrl}
+                          alt={winner.name}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80"
+                          style={{ objectPosition: '50% 20%' }}
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1D] via-[#0A0F1D]/50 to-transparent" />
                         <div className="absolute top-3 left-3 px-2 py-1 rounded backdrop-blur-md bg-black/40 border border-white/10 flex items-center gap-1.5">
                           <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: meta.color }}>{meta.icon} {meta.label} Leader</span>
