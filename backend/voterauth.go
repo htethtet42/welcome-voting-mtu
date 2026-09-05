@@ -32,10 +32,39 @@ const (
 type voterCtxKey struct{}
 
 // Voter is the authenticated identity attached to a request by requireVoter.
+//
+// Role and Weight come from eligible_voters on every request, not from the
+// session token, so revoking a judge takes effect on their very next action
+// rather than whenever their session happens to expire.
 type Voter struct {
 	Email     string
 	StudentID string
 	Name      string
+	Role      string // "student" or "judge"
+	Weight    int    // ballot multiplier; 1 for students
+}
+
+// issueVoterSession mints a voting session for an already-authenticated email.
+//
+// Extracted because two paths now reach this point — a student passing the
+// roll-number step, and a judge being approved by an organiser — and session
+// minting is exactly the code that must not drift between them.
+func issueVoterSession(db *sql.DB, email string) (string, time.Time, error) {
+	token, err := newSessionToken()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	expires := time.Now().Add(voterSessionTTL)
+	if _, err := db.Exec(
+		"INSERT INTO voter_sessions (token, email, expires_at) VALUES ($1, $2, $3)",
+		token, email, expires,
+	); err != nil {
+		return "", time.Time{}, err
+	}
+
+	db.Exec("DELETE FROM voter_sessions WHERE expires_at < now()")
+	return token, expires, nil
 }
 
 type googleLoginPayload struct {
@@ -103,6 +132,11 @@ func GoogleLoginHandler(db *sql.DB) http.HandlerFunc {
 		googleName, _ := tokenInfo.Claims["name"].(string)
 
 		var name string
+
+		// judgeOnly marks a challenge that may be spent ONLY on a judge access
+		// request, never on the roll-number step.
+		judgeOnly := false
+
 		err = db.QueryRow(
 			"SELECT name FROM eligible_voters WHERE email = $1", email,
 		).Scan(&name)
@@ -116,17 +150,22 @@ func GoogleLoginHandler(db *sql.DB) http.HandlerFunc {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 
-		case eligibilityMode() == "roll":
-			// Real-election mode: the registrar's list is authoritative.
-			log.Printf("Rejected non-eligible voter: %s\n", email)
-			http.Error(w, "not_eligible", http.StatusForbidden)
-			return
-
 		default:
-			// Demo mode: admit any verified Google account. The row is created
-			// now (with an empty roll number) so the challenge and session
-			// foreign keys have something to point at; the roll number is
-			// filled in once it passes the format check in step 2.
+			// Not on the roll.
+			//
+			// In roll mode this used to be a flat 403, which locked teachers out
+			// of the judge flow entirely: a teacher is not on the student roll by
+			// definition, so they were rejected here before they could ever reach
+			// the judge request screen. The feature worked in demo mode and
+			// silently vanished the moment the election went live.
+			//
+			// They are now admitted, but only far enough to make that request.
+			// The row is created with an EMPTY student_id, which is what keeps
+			// the student gate intact: VerifyRollHandler in roll mode compares
+			// the supplied roll number against that stored value, and an empty
+			// one matches nothing. judgeOnly is the explicit belt to that braces.
+			judgeOnly = eligibilityMode() == "roll"
+
 			name = googleName
 			if name == "" {
 				name = strings.SplitN(email, "@", 2)[0]
@@ -139,7 +178,11 @@ func GoogleLoginHandler(db *sql.DB) http.HandlerFunc {
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 				return
 			}
-			log.Printf("Registered new voter (demo mode): %s\n", email)
+			if judgeOnly {
+				log.Printf("Admitted off-roll account for judge request only: %s\n", email)
+			} else {
+				log.Printf("Registered new voter (demo mode): %s\n", email)
+			}
 		}
 
 		challenge, err := newSessionToken()
@@ -156,8 +199,8 @@ func GoogleLoginHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		if _, err := db.Exec(
-			"INSERT INTO voter_challenges (token, email, expires_at) VALUES ($1, $2, $3)",
-			challenge, email, time.Now().Add(challengeTTL),
+			"INSERT INTO voter_challenges (token, email, expires_at, judge_only) VALUES ($1, $2, $3, $4)",
+			challenge, email, time.Now().Add(challengeTTL), judgeOnly,
 		); err != nil {
 			log.Printf("Challenge insert error: %v\n", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -166,13 +209,17 @@ func GoogleLoginHandler(db *sql.DB) http.HandlerFunc {
 
 		db.Exec("DELETE FROM voter_challenges WHERE expires_at < now()")
 
-		log.Printf("Google sign-in accepted for %s; awaiting roll number\n", email)
+		log.Printf("Google sign-in accepted for %s (judgeOnly=%t)\n", email, judgeOnly)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status":         "needs_roll_number",
+			"status":         "needs_identity",
 			"challengeToken": challenge,
 			"email":          email,
 			"name":           name,
 			"attemptsLeft":   maxRollAttempts,
+			// The sign-in screen hides the Student option when this is true:
+			// the account is not on the roll, so the roll-number step would
+			// reject it no matter what they typed.
+			"judgeOnly": judgeOnly,
 		})
 	}
 }
@@ -203,10 +250,11 @@ func VerifyRollHandler(db *sql.DB) http.HandlerFunc {
 		var email string
 		var attempts int
 		var expiresAt time.Time
+		var judgeOnly bool
 		err := db.QueryRow(
-			"SELECT email, attempts, expires_at FROM voter_challenges WHERE token = $1",
+			"SELECT email, attempts, expires_at, judge_only FROM voter_challenges WHERE token = $1",
 			payload.ChallengeToken,
-		).Scan(&email, &attempts, &expiresAt)
+		).Scan(&email, &attempts, &expiresAt, &judgeOnly)
 
 		if err != nil {
 			if err != sql.ErrNoRows {
@@ -225,6 +273,20 @@ func VerifyRollHandler(db *sql.DB) http.HandlerFunc {
 		if attempts >= maxRollAttempts {
 			db.Exec("DELETE FROM voter_challenges WHERE token = $1", payload.ChallengeToken)
 			http.Error(w, "too_many_attempts", http.StatusTooManyRequests)
+			return
+		}
+
+		// SECURITY GUARD. This challenge belongs to an account that is not on
+		// the student roll, admitted solely so a teacher could request judge
+		// access. Letting it reach the roll-number check would turn the judge
+		// door into a second, unguarded door into the student ballot.
+		//
+		// The stored roll number is empty for these accounts so the comparison
+		// below would fail anyway; this refuses explicitly rather than relying
+		// on that coincidence holding true after a future edit.
+		if judgeOnly {
+			log.Printf("Refused roll-number step for off-roll account: %s\n", email)
+			http.Error(w, "not_eligible", http.StatusForbidden)
 			return
 		}
 
@@ -278,25 +340,14 @@ func VerifyRollHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		// Checks passed — issue the voting session.
-		token, err := newSessionToken()
+		token, expires, err := issueVoterSession(db, email)
 		if err != nil {
-			log.Printf("Voter token generation error: %v\n", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		expires := time.Now().Add(voterSessionTTL)
-		if _, err := db.Exec(
-			"INSERT INTO voter_sessions (token, email, expires_at) VALUES ($1, $2, $3)",
-			token, email, expires,
-		); err != nil {
-			log.Printf("Voter session insert error: %v\n", err)
+			log.Printf("Voter session error: %v\n", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
 		db.Exec("DELETE FROM voter_challenges WHERE token = $1", payload.ChallengeToken)
-		db.Exec("DELETE FROM voter_sessions WHERE expires_at < now()")
 
 		log.Printf("Voter authenticated: %s\n", email)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -304,6 +355,8 @@ func VerifyRollHandler(db *sql.DB) http.HandlerFunc {
 			"email":     email,
 			"name":      name,
 			"studentId": storedRoll,
+			"role":      "student",
+			"weight":    1,
 			"expiresAt": expires,
 		})
 	}
@@ -368,11 +421,14 @@ func requireVoter(db *sql.DB, next func(http.ResponseWriter, *http.Request, Vote
 			return
 		}
 
+		// Role and weight are read here, on every request, rather than baked
+		// into the session at login: revoking a judge then takes effect on
+		// their next action instead of whenever their 12-hour session lapses.
 		var voter Voter
 		voter.Email = email
 		if err := db.QueryRow(
-			"SELECT student_id, name FROM eligible_voters WHERE email = $1", email,
-		).Scan(&voter.StudentID, &voter.Name); err != nil {
+			"SELECT student_id, name, role, vote_weight FROM eligible_voters WHERE email = $1", email,
+		).Scan(&voter.StudentID, &voter.Name, &voter.Role, &voter.Weight); err != nil {
 			// Removed from the roll after the session was issued.
 			log.Printf("Voter no longer on roll: %s (%v)\n", email, err)
 			http.Error(w, "not_eligible", http.StatusForbidden)

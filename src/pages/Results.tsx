@@ -6,7 +6,10 @@ import { CATEGORY_META, type Category } from '../types';
 const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart','popular_man','popular_woman'];
 
 export default function Results() {
-  const { election, candidates, voteCounts, darkMode, winners } = useElection();
+  const {
+    election, candidates, voteCounts, rawCounts, judgeCounts, judgeWeight,
+    darkMode, winners,
+  } = useElection();
   const [revealed, setRevealed] = useState<Partial<Record<Category, boolean>>>({});
   const [activeCategory, setActiveCategory] = useState<Category>('king');
   const [revealPhase, setRevealPhase] = useState<'idle' | 'drumroll' | 'reveal'>('idle');
@@ -273,12 +276,40 @@ export default function Results() {
             </div>
 
             {/* Full standings */}
-            <h3 className="font-display font-bold text-xl mb-4" style={{ color: textPrimary }}>
-              Full Standings — {meta.label}
-            </h3>
+            <div className="flex items-baseline justify-between gap-4 flex-wrap mb-4">
+              <h3 className="font-display font-bold text-xl" style={{ color: textPrimary }}>
+                Full Standings — {meta.label}
+              </h3>
+              {/* The legend appears only once judge ballots exist in this
+                  category, so an election run without judges looks exactly as
+                  it always did. */}
+              {catCandidates.some(c => (judgeCounts[c.id] ?? 0) > 0) && (
+                <div className="flex gap-4 flex-wrap text-xs" style={{ color: textMuted }}>
+                  <span className="flex items-center gap-1.5">
+                    <i className="inline-block w-4 h-1.5 rounded-sm" style={{ background: meta.color }} />
+                    Student ballots
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <i className="inline-block w-4 h-1.5 rounded-sm" style={{ background: '#3B82F6' }} />
+                    Judge weight
+                  </span>
+                </div>
+              )}
+            </div>
             <div className="space-y-3">
               {catCandidates.map((c, i) => {
-                const pct = totalCatVotes > 0 ? (c.votes / totalCatVotes) * 100 : 0;
+                // c.votes is the WEIGHTED score, which is what ranks candidates.
+                const weighted = c.votes;
+                const students = rawCounts[c.id] ?? 0;    // ballots cast at 1×
+                const jBallots = judgeCounts[c.id] ?? 0;  // ballots above 1×
+                const jWeight = judgeWeight[c.id] ?? 0;   // weight those added
+
+                const pct = totalCatVotes > 0 ? (weighted / totalCatVotes) * 100 : 0;
+                // Split the same bar in proportion to what each side contributed.
+                // students + jWeight === weighted, so the two segments sum to pct.
+                const studentPct = weighted > 0 ? pct * (students / weighted) : 0;
+                const judgePct = weighted > 0 ? pct * (jWeight / weighted) : 0;
+
                 const isWinner = i === 0;
                 return (
                   <div
@@ -295,21 +326,51 @@ export default function Results() {
                     <img src={c.photo} alt={c.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm" style={{ color: textPrimary }}>{c.name}</p>
+
+                      {/* Two-tone track: the category colour for student
+                          ballots, royal for judge weight.
+
+                          This is what makes an upset survive being announced.
+                          A candidate who won on judges shows a visible blue
+                          tail while the runner-up's bar is solid category
+                          colour, so the arithmetic reads from the back of the
+                          hall with no number read at all. */}
                       <div
-                        className="mt-1.5 h-1.5 rounded-full overflow-hidden"
+                        className="mt-1.5 h-2 rounded-full overflow-hidden flex"
                         style={{ background: darkMode ? '#252538' : '#F0EDE8' }}
                       >
                         <div
-                          className="h-full rounded-full transition-all duration-700"
-                          style={{ width: `${pct}%`, background: isWinner ? meta.color : `${meta.color}66` }}
+                          className="h-full transition-all duration-700"
+                          style={{ width: `${studentPct}%`, background: isWinner ? meta.color : `${meta.color}66` }}
                         />
+                        {judgePct > 0 && (
+                          <div
+                            className="h-full transition-all duration-700"
+                            style={{ width: `${judgePct}%`, background: isWinner ? '#3B82F6' : 'rgba(59,130,246,0.55)' }}
+                          />
+                        )}
                       </div>
+
+                      {/* Never behind a hover or a toggle: a projector has no
+                          cursor, and a disclosure a student has to find is one
+                          they will say was hidden. */}
+                      <p className="font-mono text-[10px] mt-1.5 flex gap-1.5 flex-wrap items-center" style={{ color: textMuted }}>
+                        <span>{students.toLocaleString()} student{students === 1 ? '' : 's'}</span>
+                        {jBallots > 0 && (
+                          <>
+                            <span style={{ opacity: 0.4 }}>·</span>
+                            <span style={{ color: darkMode ? '#60A5FA' : '#2563C4' }}>
+                              ⚖ {jBallots} judge{jBallots === 1 ? '' : 's'} &nbsp;+{jWeight}
+                            </span>
+                          </>
+                        )}
+                      </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-mono font-bold" style={{ color: isWinner ? meta.color : textPrimary }}>
-                        {c.votes.toLocaleString()}
+                      <p className="font-mono font-bold tabular-nums" style={{ color: isWinner ? meta.color : textPrimary }}>
+                        {weighted.toLocaleString()}
                       </p>
-                      <p className="font-mono text-xs" style={{ color: textMuted }}>{pct.toFixed(1)}%</p>
+                      <p className="font-mono text-xs tabular-nums" style={{ color: textMuted }}>{pct.toFixed(1)}%</p>
                     </div>
                   </div>
                 );

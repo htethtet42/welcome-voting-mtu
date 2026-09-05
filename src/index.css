@@ -19,8 +19,14 @@
   --color-blush-400: #FF7AAE;
   --color-jade-500: #00C9A7;
   --color-jade-400: #2EDBB8;
+  /* Royal answers WHO (this person is a judge). Gold answers HOW MUCH (this
+     ballot is worth 5×). Never merge them: if judges wore gold, a judge badge
+     and a weight chip would say the same thing as the crown behind them, and
+     weight would lose its own signature. See DESIGN.md. */
   --color-royal-500: #3B82F6;
   --color-royal-400: #60A5FA;
+  /* 400 fails contrast on the cream ground; 600 is the light-mode judge text. */
+  --color-royal-600: #2563C4;
   --color-cream-50: #F8F5EF;
   --color-cream-100: #F0EDE8;
   --color-cream-200: #E4DED6;
@@ -45,7 +51,26 @@
   100% { background-position: 200% center; }
 }
 
+/* The waiting-for-approval pulse. A spinner would claim the app is busy; this
+   is waiting on a PERSON, so it breathes instead of spinning. */
+@keyframes pulse-royal {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(96,165,250,0.55); }
+  70% { box-shadow: 0 0 0 11px rgba(96,165,250,0); }
+}
+
 .animate-pulse-gold { animation: pulse-gold 2s ease-in-out infinite; }
+.animate-pulse-royal { animation: pulse-royal 2.1s ease-out infinite; }
+
+/* Decorative motion only. A judge staring at a pending screen still gets the
+   status text and the elapsed timer, which carry all the information. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-gold,
+  .animate-pulse-royal,
+  .animate-float,
+  .text-shimmer { animation: none; }
+  .animate-pulse-royal { box-shadow: 0 0 0 5px rgba(96,165,250,0.2); }
+  .text-shimmer { -webkit-text-fill-color: #D4AF37; color: #D4AF37; }
+}
 .animate-float { animation: float 3s ease-in-out infinite; }
 
 .text-shimmer {

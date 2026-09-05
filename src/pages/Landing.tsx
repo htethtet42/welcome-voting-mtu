@@ -32,8 +32,6 @@ const DEFAULT_META = {
   bg: 'rgba(212,175,55,0.1)'
 };
 
-const FALLBACK_DEADLINE = new Date('2026-09-02T23:59:59');
-
 export default function Landing() {
   const { darkMode, election, candidates, voteRecords } = useElection();
 
@@ -64,13 +62,22 @@ const activeNomineesCount = candidates.filter(c => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
-    const targetTime = election.closesAt ? new Date(election.closesAt) : FALLBACK_DEADLINE;
+    // No fallback date. There used to be one, and because it had already
+    // passed, an election with no scheduled close (closes_at IS NULL, which is
+    // the normal case when an organiser ends the polls by hand) rendered
+    // "Polls Close: 00d 00h 00m 00s" while voting was wide open.
+    if (!election.closesAt || election.status !== 'open') {
+      setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      return;
+    }
+
+    const targetTime = new Date(election.closesAt);
 
     const updateTimer = () => {
       const now = new Date();
       const diff = targetTime.getTime() - now.getTime();
 
-      if (diff <= 0 || election.status !== 'open') {
+      if (diff <= 0) {
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
         return;
       }
@@ -149,13 +156,25 @@ const activeNomineesCount = candidates.filter(c => {
         <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-2.5 rounded-full bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-md backdrop-blur-md max-w-fit mx-auto mb-10 z-10">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
             <Clock className="w-4 h-4 text-amber-500" />
-            <span>Polls Close:</span>
-            {election.status === 'open' ? (
-              <span className="font-mono text-amber-500 font-bold">
-                {formatNum(timeLeft.days)}d {formatNum(timeLeft.hours)}h {formatNum(timeLeft.minutes)}m {formatNum(timeLeft.seconds)}s
-              </span>
+            {/* Same three states as the ballot page: closed, counting down to a
+                real scheduled time, or open with no deadline set. */}
+            {election.status !== 'open' ? (
+              <>
+                <span>Polls:</span>
+                <span className="font-bold text-rose-500">Voting Closed</span>
+              </>
+            ) : election.closesAt ? (
+              <>
+                <span>Polls Close:</span>
+                <span className="font-mono text-amber-500 font-bold">
+                  {formatNum(timeLeft.days)}d {formatNum(timeLeft.hours)}h {formatNum(timeLeft.minutes)}m {formatNum(timeLeft.seconds)}s
+                </span>
+              </>
             ) : (
-              <span className="font-bold text-rose-500">Voting Closed</span>
+              <>
+                <span>Polls:</span>
+                <span className="font-bold text-amber-500">Open</span>
+              </>
             )}
           </div>
 

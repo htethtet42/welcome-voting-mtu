@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -6,25 +6,37 @@ import autoTable from 'jspdf-autotable';
 import {
   Shield, Trophy, Users, BarChart3, FileText, EyeOff,
   Download, RefreshCw, Plus, Pencil, CheckCircle2,
-  XCircle, AlertTriangle, X, Check, Activity, Database, List
+  XCircle, AlertTriangle, X, Check, Activity, Database, List, Scale
 } from 'lucide-react';
 import { useElection } from '../context/ElectionContext';
 import { useAuth } from '../context/AuthContext';
-import { CATEGORY_META, type Category, type Candidate } from '../types';
-import { API_URL } from '../lib/api';
+import {
+  CATEGORY_META, JUDGE_WEIGHTS,
+  type Category, type Candidate, type PendingJudge, type ApprovedJudge,
+} from '../types';
+import { API_URL, authHeaders } from '../lib/api';
 
-const TABS = ['Overview', 'Candidates', 'Ballots', 'Analytics', 'Audit', 'Controls'] as const;
+/**
+ * How often the admin panel refreshes the approval queue.
+ *
+ * Slower than the judge's own 3s poll: a judge is watching one screen and
+ * waiting, whereas the organiser is told about arrivals by a banner they cannot
+ * miss. Eight seconds keeps the badge honest without adding much to a
+ * 3-connection pool that is also serving 300 students.
+ */
+const JUDGE_QUEUE_POLL_MS = 8_000;
+
+const TABS = ['Overview', 'Candidates', 'Ballots', 'Judges', 'Analytics', 'Audit', 'Controls'] as const;
 type Tab = typeof TABS[number];
 
-// Upgraded colors covering all six categories
-const CAT_COLORS: Record<Category, string> = {
-  king: '#60A5FA',
-  queen: '#FF7AAE',
-  style: '#A78BFA',
-  smart: '#2EDBB8',
-  popular_man: '#2EDBB8',
-  popular_woman: '#A78BFA',
-};
+// The category colour map that used to live here disagreed with CATEGORY_META
+// on four of six categories: King was royal blue instead of gold, and both
+// Popular categories were straight duplicates of Smartest and Best Style, so
+// the analytics chart drew pairs of bars in identical colours.
+//
+// CATEGORY_META in types.ts is canonical (see DESIGN.md). A second copy is the
+// bug, not the colours in it — and royal is now the judge role, so King wearing
+// it here would collide with the judge badge.
 
 interface CandidateForm {
   name: string;
@@ -88,6 +100,108 @@ export default function Admin() {
   const [confirmAction, setConfirmAction] = useState<null | { label: string; action: () => void }>(null);
   const [candidateModal, setCandidateModal] = useState<null | { mode: 'add' | 'edit'; id?: string }>(null);
   const [form, setForm] = useState<CandidateForm>(BLANK_FORM);
+
+  // --- Judge approval queue -------------------------------------------------
+  const [pendingJudges, setPendingJudges] = useState<PendingJudge[]>([]);
+  const [approvedJudges, setApprovedJudges] = useState<ApprovedJudge[]>([]);
+  // Weight chosen per request, keyed by request token. A request with no entry
+  // here cannot be approved — that is what makes approve-and-weight one action.
+  const [judgeWeights, setJudgeWeights] = useState<Record<string, number>>({});
+  const [judgeBusy, setJudgeBusy] = useState<string | null>(null);
+  const [judgeError, setJudgeError] = useState<string | null>(null);
+  const [judgeNow, setJudgeNow] = useState(() => Date.now());
+
+  const loadJudges = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/judges`, {
+        cache: 'no-store',
+        headers: authHeaders(),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setPendingJudges(data.pending ?? []);
+      setApprovedJudges(data.approved ?? []);
+    } catch {
+      /* transient — the next tick retries */
+    }
+  }, []);
+
+  /**
+   * Poll the queue from every tab, not just the Judges tab.
+   *
+   * On a live night the organiser is on Ballots watching turnout, and that is
+   * exactly when a teacher is standing at the desk. A queue only visible from
+   * the tab nobody has open is a queue that never gets cleared.
+   */
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadJudges();
+    const poll = setInterval(() => {
+      if (!document.hidden) loadJudges();
+    }, JUDGE_QUEUE_POLL_MS);
+    const tick = setInterval(() => setJudgeNow(Date.now()), 1000);
+    return () => { clearInterval(poll); clearInterval(tick); };
+  }, [isAdmin, loadJudges]);
+
+  const decideJudge = async (token: string, decision: 'approve' | 'decline') => {
+    const weight = judgeWeights[token];
+    if (decision === 'approve' && !weight) {
+      setJudgeError('Pick a weight before approving.');
+      return;
+    }
+    setJudgeBusy(token);
+    setJudgeError(null);
+    try {
+      const response = await fetch(`${API_URL}/judges/decide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ token, decision, weight: weight ?? 0 }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        setJudgeError(
+          body.includes('already_decided')
+            ? 'Another organiser already decided this request.'
+            : 'Could not save that decision. Try again.'
+        );
+        return;
+      }
+      await loadJudges();
+    } catch {
+      setJudgeError('Could not reach the server.');
+    } finally {
+      setJudgeBusy(null);
+    }
+  };
+
+  const revokeJudge = async (email: string) => {
+    setJudgeBusy(email);
+    setJudgeError(null);
+    try {
+      const response = await fetch(`${API_URL}/judges/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ email }),
+      });
+      if (!response.ok) {
+        setJudgeError('Could not revoke that judge. Try again.');
+        return;
+      }
+      await loadJudges();
+    } catch {
+      setJudgeError('Could not reach the server.');
+    } finally {
+      setJudgeBusy(null);
+    }
+  };
+
+  /** Elapsed wait, so an organiser can see who has been standing there longest. */
+  const waitedFor = (iso: string) => {
+    const total = Math.max(0, Math.floor((judgeNow - new Date(iso).getTime()) / 1000));
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return mins === 0 ? `${secs}s` : `${mins} min ${secs.toString().padStart(2, '0')}s`;
+  };
 
   // Modern Prestige Color Palette
   const bg = darkMode ? '#0A0F1D' : '#e7dbc5';
@@ -291,14 +405,47 @@ export default function Admin() {
               {tab === 'Overview' && <Activity size={14} />}
               {tab === 'Candidates' && <Users size={14} />}
               {tab === 'Ballots' && <Database size={14} />}
+              {tab === 'Judges' && <Scale size={14} />}
               {tab === 'Analytics' && <BarChart3 size={14} />}
               {tab === 'Audit' && <List size={14} />}
               {tab === 'Controls' && <Shield size={14} />}
               {tab}
+              {tab === 'Judges' && pendingJudges.length > 0 && (
+                <span
+                  className="ml-1 min-w-[18px] px-1.5 py-px rounded-full font-mono text-[10px] font-bold text-center"
+                  style={{ background: '#3B82F6', color: '#08101E' }}
+                >
+                  {pendingJudges.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Judges waiting — visible from EVERY tab.
+          The badge above only helps someone already looking at the tab strip;
+          this follows the organiser wherever they are. */}
+      {pendingJudges.length > 0 && activeTab !== 'Judges' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 -mt-2 mb-2">
+          <div
+            className="rounded-xl px-4 py-3 flex items-center gap-3 flex-wrap border"
+            style={{ background: 'rgba(59,130,246,0.09)', borderColor: 'rgba(59,130,246,0.34)' }}
+          >
+            <Scale size={16} style={{ color: '#60A5FA' }} />
+            <span className="text-sm font-semibold flex-1 min-w-[180px]" style={{ color: '#60A5FA' }}>
+              {pendingJudges.length} judge{pendingJudges.length === 1 ? '' : 's'} waiting for approval
+            </span>
+            <button
+              onClick={() => setActiveTab('Judges')}
+              className="text-xs font-bold px-3.5 py-1.5 rounded-full transition-transform hover:scale-105"
+              style={{ background: '#3B82F6', color: '#08101E' }}
+            >
+              Review &rarr;
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 relative z-10">
 
@@ -376,7 +523,17 @@ export default function Admin() {
                   return (
                     <div key={cat} className="group rounded-3xl overflow-hidden backdrop-blur-md transition-all hover:scale-[1.02]" style={{ background: cardBg, border: `1px solid ${meta.borderColor}` }}>
                       <div className="relative aspect-video overflow-hidden bg-gray-900">
-                        <img src={winner.photo ?? winner.photoUrl} alt={winner.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80" />
+                        {/* These are portrait photos in a 16:9 frame, so
+                            object-cover has to crop somewhere. The default
+                            50% 50% crops top and bottom equally and takes the
+                            head with it. Biasing to 20% keeps the face in
+                            frame with a little headroom. Hover is untouched. */}
+                        <img
+                          src={winner.photo ?? winner.photoUrl}
+                          alt={winner.name}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80"
+                          style={{ objectPosition: '50% 20%' }}
+                        />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0F1D] via-[#0A0F1D]/50 to-transparent" />
                         <div className="absolute top-3 left-3 px-2 py-1 rounded backdrop-blur-md bg-black/40 border border-white/10 flex items-center gap-1.5">
                           <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: meta.color }}>{meta.icon} {meta.label} Leader</span>
@@ -547,7 +704,7 @@ export default function Admin() {
                       itemStyle={{ fontWeight: 'bold' }}
                     />
                     <Bar dataKey="votes" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                      {barData.map((e, i) => <Cell key={i} fill={CAT_COLORS[e.category as Category]} style={{ filter: 'drop-shadow(0px 0px 8px rgba(0,0,0,0.2))' }} />)}
+                      {barData.map((e, i) => <Cell key={i} fill={CATEGORY_META[e.category as Category].color} style={{ filter: 'drop-shadow(0px 0px 8px rgba(0,0,0,0.2))' }} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -637,6 +794,185 @@ export default function Admin() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* JUDGES */}
+        {activeTab === 'Judges' && (
+          <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out]">
+            {judgeError && (
+              <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,77,141,0.1)', color: '#FF4D8D' }}>
+                {judgeError}
+              </div>
+            )}
+
+            {/* --- Approval queue --- */}
+            <div className="rounded-3xl border p-6 sm:p-8 backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
+              <h3 className="font-display font-bold text-2xl mb-1" style={{ color: textPrimary }}>
+                Waiting for approval
+              </h3>
+              <p className="text-sm mb-6" style={{ color: textMuted }}>
+                Match the code on their screen, then approve at the weight their vote should carry.
+                Approving is the only thing that lets a judge vote.
+              </p>
+
+              {pendingJudges.length === 0 ? (
+                <p className="text-sm py-8 text-center" style={{ color: textMuted }}>
+                  Nobody is waiting. Requests appear here the moment a teacher submits one.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {pendingJudges.map(j => {
+                    const chosen = judgeWeights[j.token];
+                    const busy = judgeBusy === j.token;
+                    return (
+                      <div
+                        key={j.token}
+                        className="rounded-2xl p-5 flex flex-col gap-4 border"
+                        style={{ background: darkMode ? 'rgba(22,22,36,0.6)' : 'rgba(255,255,255,0.7)', borderColor: 'rgba(59,130,246,0.26)' }}
+                      >
+                        <div className="flex gap-3 items-start flex-wrap">
+                          <span
+                            className="font-mono font-bold text-sm px-2.5 py-1.5 rounded-lg shrink-0"
+                            style={{ background: 'rgba(59,130,246,0.11)', border: '1px solid rgba(59,130,246,0.3)', color: '#60A5FA' }}
+                          >
+                            {j.code}
+                          </span>
+                          <div className="flex-1 min-w-[150px]">
+                            <p className="font-semibold" style={{ color: textPrimary }}>{j.name}</p>
+                            <p className="text-xs break-all" style={{ color: textMuted }}>
+                              {j.email}{j.department ? ` · ${j.department}` : ''}
+                            </p>
+                          </div>
+                          <span className="font-mono text-xs shrink-0" style={{ color: textMuted }}>
+                            {waitedFor(j.requestedAt)}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <span className="text-xs" style={{ color: textMuted }}>Vote weight</span>
+                          <div className="flex gap-2 flex-wrap">
+                            {JUDGE_WEIGHTS.map(wt => (
+                              <button
+                                key={wt}
+                                onClick={() => setJudgeWeights(p => ({ ...p, [j.token]: wt }))}
+                                className="font-mono font-bold text-sm px-4 py-2 rounded-lg transition-all"
+                                style={
+                                  chosen === wt
+                                    ? { background: 'rgba(212,175,55,0.14)', border: '1px solid rgba(212,175,55,0.45)', color: '#E8C84A' }
+                                    : { background: darkMode ? 'rgba(10,15,29,0.5)' : 'rgba(255,255,255,0.9)', border: `1px solid ${border}`, color: textMuted }
+                                }
+                              >
+                                {wt}&times;
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 flex-wrap">
+                          {/* Dead until a weight is picked. No judge can exist
+                              at an undefined multiplier, and the label reads
+                              back the choice so it cannot be approved blind. */}
+                          <button
+                            onClick={() => decideJudge(j.token, 'approve')}
+                            disabled={!chosen || busy}
+                            className="flex-1 min-w-[130px] py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:hover:scale-100 disabled:cursor-not-allowed"
+                            style={
+                              chosen
+                                ? { background: 'linear-gradient(135deg, #D4AF37, #E8C84A)', color: '#0D0D1A', opacity: busy ? 0.6 : 1 }
+                                : { background: darkMode ? 'rgba(10,15,29,0.5)' : 'rgba(0,0,0,0.05)', color: textMuted, border: `1px solid ${border}` }
+                            }
+                          >
+                            <Check size={14} className="inline mr-1.5" />
+                            {busy ? 'Saving…' : chosen ? `Approve at ${chosen}×` : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => decideJudge(j.token, 'decline')}
+                            disabled={busy}
+                            className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed"
+                            style={{ color: '#FF4D8D', border: '1px solid rgba(255,77,141,0.3)' }}
+                          >
+                            Decline
+                          </button>
+                        </div>
+
+                        {!chosen && (
+                          <p className="text-xs italic" style={{ color: textMuted }}>
+                            Pick a weight to enable Approve.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* --- Roster --- */}
+            <div className="rounded-3xl border p-6 sm:p-8 backdrop-blur-md shadow-2xl" style={{ background: cardBg, borderColor: border }}>
+              <h3 className="font-display font-bold text-2xl mb-1" style={{ color: textPrimary }}>
+                Approved judges
+                <span className="font-mono text-base font-normal ml-2" style={{ color: textMuted }}>
+                  {approvedJudges.length}
+                </span>
+              </h3>
+              <p className="text-sm mb-6" style={{ color: textMuted }}>
+                Contributed is summed from the ballots themselves. Changing a weight affects only
+                ballots cast afterwards, so a result that has already been announced cannot be rewritten.
+              </p>
+
+              {approvedJudges.length === 0 ? (
+                <p className="text-sm py-8 text-center" style={{ color: textMuted }}>
+                  No judges approved yet.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left border-collapse">
+                    <thead>
+                      <tr style={{ color: textMuted }}>
+                        <th className="pb-3 pr-4 font-mono text-[10px] tracking-[0.13em] uppercase font-medium">Name</th>
+                        <th className="pb-3 pr-4 font-mono text-[10px] tracking-[0.13em] uppercase font-medium">Email</th>
+                        <th className="pb-3 pr-4 font-mono text-[10px] tracking-[0.13em] uppercase font-medium">Weight</th>
+                        <th className="pb-3 pr-4 font-mono text-[10px] tracking-[0.13em] uppercase font-medium">Ballots</th>
+                        <th className="pb-3 pr-4 font-mono text-[10px] tracking-[0.13em] uppercase font-medium">Contributed</th>
+                        <th className="pb-3 font-mono text-[10px] tracking-[0.13em] uppercase font-medium"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {approvedJudges.map(j => (
+                        <tr key={j.email} style={{ borderTop: `1px solid ${border}` }}>
+                          <td className="py-3 pr-4 font-medium" style={{ color: textPrimary }}>{j.name}</td>
+                          <td className="py-3 pr-4 break-all" style={{ color: textMuted }}>{j.email}</td>
+                          <td className="py-3 pr-4">
+                            <span
+                              className="inline-flex font-mono font-bold text-xs px-2 py-1 rounded-full"
+                              style={{ background: 'rgba(212,175,55,0.13)', border: '1px solid rgba(212,175,55,0.4)', color: '#E8C84A' }}
+                            >
+                              {j.weight}&times;
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 font-mono tabular-nums" style={{ color: textPrimary }}>{j.ballots}</td>
+                          <td className="py-3 pr-4 font-mono tabular-nums" style={{ color: '#60A5FA' }}>{j.contributed}</td>
+                          <td className="py-3">
+                            <button
+                              onClick={() => setConfirmAction({
+                                label: `Revoke judge access for ${j.name}? Ballots they already cast keep the weight stamped on them.`,
+                                action: () => revokeJudge(j.email),
+                              })}
+                              disabled={judgeBusy === j.email}
+                              className="text-xs font-semibold transition-colors hover:text-red-400 disabled:cursor-not-allowed"
+                              style={{ color: textMuted }}
+                            >
+                              Revoke
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

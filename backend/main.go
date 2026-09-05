@@ -216,13 +216,27 @@ func CastVoteHandler(db *sql.DB) http.HandlerFunc {
 			recordedEmail, recordedName = "", ""
 		}
 
-		log.Printf("Vote attempt by %s for %s (%s, anonymous=%t)\n",
-			voter.Email, payload.CandidateID, payload.Category, payload.Anonymous)
+		// The multiplier is STAMPED on the ballot now, not joined from
+		// eligible_voters at tally time. An admin who later changes a judge's
+		// weight therefore affects only ballots cast afterwards, and can never
+		// silently rewrite a result that has already been announced.
+		//
+		// Clamped defensively: the column carries a CHECK on (1,3,5,10), so a
+		// zero value from an unexpected code path would reject the whole ballot
+		// rather than merely miscount it.
+		weight := voter.Weight
+		if !judgeWeightValid(weight) {
+			log.Printf("Unexpected vote weight %d for %s; recording as 1\n", weight, voter.Email)
+			weight = 1
+		}
+
+		log.Printf("Vote attempt by %s for %s (%s, anonymous=%t, weight=%d)\n",
+			voter.Email, payload.CandidateID, payload.Category, payload.Anonymous, weight)
 
 		ballotID := uuid.New().String()
-		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at, is_anonymous) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+		query := "INSERT INTO ballots (id, voter_id, voter_email, voter_name, candidate_id, category, created_at, is_anonymous, vote_weight) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
 
-		_, err := db.Exec(query, ballotID, voterID, recordedEmail, recordedName, payload.CandidateID, payload.Category, time.Now(), payload.Anonymous)
+		_, err := db.Exec(query, ballotID, voterID, recordedEmail, recordedName, payload.CandidateID, payload.Category, time.Now(), payload.Anonymous, weight)
 
 		if err != nil {
 			log.Printf("Postgres Insert Error: %v\n", err)
@@ -848,6 +862,13 @@ func main() {
  register("/auth/verify-roll", VerifyRollHandler(db))
  register("/auth/logout", VoterLogoutHandler(db))
 
+ // --- Judge access (self-requested, admin-approved) ---
+ // Both are public: the caller holds a challenge or request token, which is
+ // the credential. Neither grants a voting session on its own — only an
+ // admin decision does, through /judges/decide below.
+ register("/auth/request-judge", RequestJudgeHandler(db))
+ register("/auth/judge-status", JudgeStatusHandler(db))
+
  // --- Voter-only endpoints (identity comes from the session, not the body) ---
  register("/votes", CastVoteHandler(db))
  register("/my-ballots", MyBallotsHandler(db))
@@ -856,6 +877,13 @@ func main() {
  // GET leaks voter PII and DELETE wipes the election, so both need auth.
  register("/ballots", requireAdmin(db, GetAllBallotsHandler(db)))
  register("/audit", requireAdmin(db, AuditHandler(db)))
+
+ // Approving a judge is the only action that hands one person more voting
+ // power than everyone else, so it sits behind the same admin gate as the
+ // ballot ledger.
+ register("/judges", requireAdmin(db, ListJudgesHandler(db)))
+ register("/judges/decide", requireAdmin(db, DecideJudgeHandler(db)))
+ register("/judges/revoke", requireAdmin(db, RevokeJudgeHandler(db)))
 
  // --- Mixed: public reads, admin writes ---
  register("/candidates", adminForMethods(db, CandidatesHandler(db), "POST", "PUT"))

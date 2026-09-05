@@ -19,7 +19,22 @@ import { API_URL, authHeaders, getAdminToken, voterHeaders, getVoterToken } from
 interface ElectionContextType {
   election: ElectionState;
   candidates: Candidate[];
+  /**
+   * WEIGHTED score per candidate — authoritative for rank.
+   *
+   * Judge ballots count 3×, 5× or 10×, so this is not a ballot count. Winners
+   * are chosen by sorting this map and the results bars are sized from it; if
+   * it held raw ballots while the bars showed weighted totals, the gold-medal
+   * banner could name one candidate while the longest bar belonged to another.
+   * See DESIGN.md.
+   */
   voteCounts: Record<string, number>;
+  /** Ballots cast at 1×. Display only — feeds the breakdown under each bar. */
+  rawCounts: Record<string, number>;
+  /** Number of judge ballots (weight above 1×). Display only. */
+  judgeCounts: Record<string, number>;
+  /** Weight those judge ballots added on top. Display only. */
+  judgeWeight: Record<string, number>;
   voteRecords: VoteRecord[];
   auditLog: AuditEntry[];
   darkMode: boolean;
@@ -204,6 +219,9 @@ export function ElectionProvider({
   const [voteCounts, setVoteCounts] = useState<
     Record<string, number>
   >({});
+  const [rawCounts, setRawCounts] = useState<Record<string, number>>({});
+  const [judgeCounts, setJudgeCounts] = useState<Record<string, number>>({});
+  const [judgeWeight, setJudgeWeight] = useState<Record<string, number>>({});
 
   // ---------------------------------------------------------
   // AUDIT
@@ -473,7 +491,12 @@ export function ElectionProvider({
       }
 
       const data = await response.json();
+      // `counts` is the weighted score and decides rank. The other three are
+      // display-only and feed the breakdown line under each results bar.
       setVoteCounts(data.counts || {});
+      setRawCounts(data.rawCounts || {});
+      setJudgeCounts(data.judgeCounts || {});
+      setJudgeWeight(data.judgeWeight || {});
     } catch (error) {
       console.error('❌ Error loading tally:', error);
     }
@@ -1257,6 +1280,9 @@ export function ElectionProvider({
         election,
         candidates,
         voteCounts,
+        rawCounts,
+        judgeCounts,
+        judgeWeight,
         voteRecords,
         auditLog,
         darkMode,

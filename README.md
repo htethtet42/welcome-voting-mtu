@@ -254,6 +254,8 @@ cd backend
 psql "$DATABASE_URL" -f schema.sql
 psql "$DATABASE_URL" -f schema_auth.sql
 psql "$DATABASE_URL" -f schema_voters.sql
+psql "$DATABASE_URL" -f schema_anonymous.sql
+psql "$DATABASE_URL" -f schema_judges.sql
 psql "$DATABASE_URL" -f seed_candidates.sql
 ```
 

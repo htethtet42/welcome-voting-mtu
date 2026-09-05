@@ -1,6 +1,37 @@
 export type Category = 'king' | 'queen' | 'style' | 'smart' | 'popular_man' | 'popular_woman';
 export type ElectionStatus = 'scheduled' | 'open' | 'closed' | 'published';
-export type UserRole = 'voter' | 'admin';
+export type UserRole = 'voter' | 'judge' | 'admin';
+
+/** Multipliers an organiser may assign. Mirrors the CHECK constraint in
+ *  schema_judges.sql and `allowedJudgeWeights` in backend/judges.go. */
+export const JUDGE_WEIGHTS = [3, 5, 10] as const;
+export type JudgeWeight = (typeof JUDGE_WEIGHTS)[number];
+
+/** Where a judge access request stands. `pending` is a waiting screen, not a
+ *  permission — only an organiser's approval issues a voting session. */
+export type JudgeRequestStatus = 'pending' | 'approved' | 'declined';
+
+/** A judge waiting in the organiser's queue. */
+export interface PendingJudge {
+  token: string;
+  /** Short human code (J-07) the judge shows an organiser across a desk. */
+  code: string;
+  name: string;
+  email: string;
+  department: string;
+  requestedAt: string;
+}
+
+/** An approved judge on the roster. `contributed` is summed from the ballots
+ *  themselves, so it reflects the weights actually stamped at cast time rather
+ *  than the judge's current weight. */
+export interface ApprovedJudge {
+  email: string;
+  name: string;
+  weight: number;
+  ballots: number;
+  contributed: number;
+}
 
 export interface Candidate {
   id: string;
@@ -31,6 +62,9 @@ export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  /** Ballot multiplier. 1 for students; 3, 5 or 10 for approved judges.
+   *  Display only — the server stamps the authoritative weight on the ballot. */
+  voteWeight?: number;
 }
 
 export interface AuditEntry {
