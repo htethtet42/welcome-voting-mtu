@@ -64,6 +64,8 @@ interface AuthContextType {
   requestJudgeAccess: (name: string, department: string) => Promise<boolean>;
   /** Abandon a pending or declined request and return to sign-in. */
   cancelJudgeRequest: () => void;
+  /** Discard a half-finished Google sign-in and return to the Google button. */
+  resetSignIn: () => void;
   loginAdmin: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
@@ -392,6 +394,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /**
+   * Discard a half-finished Google sign-in.
+   *
+   * Backing out of the role choice has to clear pendingVoter, not just move the
+   * step. The login screen resumes at the role choice whenever pendingVoter is
+   * set — that is what carries you back to the right place after navigating
+   * away — so leaving it set would bounce Back straight forward again and the
+   * button would appear to do nothing.
+   *
+   * The challenge token is dropped too: it identifies the Google account being
+   * abandoned, and signing in again mints a fresh one.
+   */
+  const resetSignIn = () => {
+    setPendingVoter(null);
+    setChallengeToken(null);
+    setJudgeOnly(false);
+    setLoginError(null);
+  };
+
+  /**
    * Authenticates against the backend, which verifies the password against a
    * bcrypt hash and issues a session token.
    *
@@ -472,6 +493,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verifyRollNumber,
       requestJudgeAccess,
       cancelJudgeRequest,
+      resetSignIn,
       loginAdmin,
       logout,
       clearError,

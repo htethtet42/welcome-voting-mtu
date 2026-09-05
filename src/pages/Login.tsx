@@ -36,7 +36,8 @@ function formatElapsed(ms: number): string {
 export default function Login() {
   const {
     signInWithGoogle, verifyRollNumber, requestJudgeAccess, cancelJudgeRequest,
-    loginAdmin, pendingVoter, judgeOnly, judgeRequest, loginError, clearError,
+    resetSignIn, loginAdmin, pendingVoter, judgeOnly, judgeRequest,
+    loginError, clearError,
   } = useAuth();
   const { darkMode } = useElection();
   const navigate = useNavigate();
@@ -155,10 +156,19 @@ export default function Login() {
     if (ok) navigate('/admin', { replace: true });
   };
 
+  /**
+   * Back from the role choice means "not as this account".
+   *
+   * It must clear pendingVoter, not just set the step: the resume effect below
+   * sends you to `choose` whenever pendingVoter is set, so moving the step
+   * alone bounces straight forward again and Back appears dead.
+   */
   const handleBackToCredentials = () => {
+    resetSignIn();
     setStep('credentials');
     setRollNumber('');
-    clearError();
+    setJudgeName('');
+    setJudgeDept('');
     setCustomError(null);
   };
 
