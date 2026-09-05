@@ -8,7 +8,6 @@ import { CATEGORY_META, type Category } from '../types';
 import CountdownTimer from '../components/CountdownTimer';
 
 const CATEGORIES: Category[] = ['king', 'queen', 'style', 'smart', 'popular_man', 'popular_woman'];
-const DEADLINE = new Date('2026-09-02T23:59:59');
 
 export default function Vote() {
   const { candidates, election, voteRecords, castVote, darkMode } = useElection();
@@ -153,15 +152,41 @@ export default function Vote() {
         
         {/* Polls Status & Voter Info Pill */}
         <div className="inline-flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 px-6 py-3 rounded-full backdrop-blur-md border shadow-sm" style={{ background: cardBg, borderColor: border }}>
+          {/* Three honest states, driven by the database rather than a
+              hardcoded date:
+
+                status not open        -> "Voting Closed"
+                open + closes_at set   -> live countdown to that time
+                open + closes_at NULL  -> "Open" (no deadline exists)
+
+              The third case is the common one: an organiser opens the polls
+              without scheduling a close and ends them by hand. Counting down
+              to an invented deadline told voters the polls had shut while the
+              server was still happily accepting their ballots. */}
           <div className="flex items-center gap-2">
             <Clock size={16} className={votingOpen ? "animate-pulse" : ""} style={{ color: '#D4AF37' }} />
-            <span className="text-sm font-medium" style={{ color: textMuted }}>Polls Close:</span>
-            {votingOpen ? (
-              <CountdownTimer target={DEADLINE} compact darkMode={darkMode} />
+            {!votingOpen ? (
+              <>
+                <span className="text-sm font-medium" style={{ color: textMuted }}>Polls:</span>
+                <span className="font-bold px-2.5 py-0.5 rounded-full text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                  Voting Closed
+                </span>
+              </>
+            ) : election.closesAt ? (
+              <>
+                <span className="text-sm font-medium" style={{ color: textMuted }}>Polls Close:</span>
+                <CountdownTimer target={election.closesAt} compact darkMode={darkMode} />
+              </>
             ) : (
-              <span className="font-bold px-2.5 py-0.5 rounded-full text-[11px] bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                Voting Closed
-              </span>
+              <>
+                <span className="text-sm font-medium" style={{ color: textMuted }}>Polls:</span>
+                <span
+                  className="font-bold px-2.5 py-0.5 rounded-full text-[11px]"
+                  style={{ background: 'rgba(212,175,55,0.12)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}
+                >
+                  Open
+                </span>
+              </>
             )}
           </div>
           <div className="hidden sm:block w-px h-4" style={{ background: border }}></div>
